@@ -2,6 +2,7 @@
  * ==========================================================================
  * ENVIROMINE MONITOR — LIMBAH B3 V1.1 (PT. ETAM MANUNGGAL JAYA)
  * Frontend Single Page Application Engine (GitHub Pages & GAS Compatible)
+ * Versi V1.1.2 (Studio TTD Online, Auto Nomor Neraca, Filter Periode, Left KOP)
  * ==========================================================================
  */
 
@@ -12,7 +13,8 @@ const STATE = {
   activeView: 'dashboard',
   sidebarCollapsed: false,
   signatureTarget: null, // { neracaId, role }
-  chartInstance: null
+  chartInstance: null,
+  tempProfilePhoto: null
 };
 
 // 8 Items Checklist Fasilitas K3L TPS LB3 01 PT EMJ (Sesuai Rintek)
@@ -27,18 +29,24 @@ const INSPEKSI_ITEMS_DEFAULT = [
   'Kotak Pertolongan Pertama Pada Kecelakaan (P3K)'
 ];
 
+const BULAN_NAMA = [
+  'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+  'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+];
+
 // ==========================================================================
-// 1. INITIALIZATION & DATABASE SEEDING (LOCAL ENGINE FALLBACK)
+// 1. INITIALIZATION & DATABASE SEEDING
 // ==========================================================================
 document.addEventListener('DOMContentLoaded', () => {
   initLocalDatabase();
+  applyCompanySettingsUI();
   checkAuthSession();
   updateGasStatusBadge();
   setupGlobalShortcuts();
 });
 
 function initLocalDatabase() {
-  // 1. Master Rintek PT EMJ (9 Item Resmi)
+  // 1. Master Rintek PT EMJ (9 Item Resmi Rintek)
   if (!localStorage.getItem('db_rintek')) {
     const defaultRintek = [
       { kodeLimbah: 'A102d', namaLimbah: 'Aki/baterai bekas', sumber: 'Sumber tidak spesifik', karakteristik: 'Korosif, Beracun', jenisWadah: 'Palet (2x1.5m)', kapasitasWadah: 1800, satuan: 'Kg', batasSimpanHari: 90 },
@@ -65,15 +73,15 @@ function initLocalDatabase() {
   // 3. Master Users (4 Roles)
   if (!localStorage.getItem('db_users')) {
     const defaultUsers = [
-      { id: 'USR-01', nama: 'Operator Lapangan TPS', username: 'operator', password: 'operator123', role: 'Operator', status: 'Aktif' },
-      { id: 'USR-02', nama: 'Penanggung Jawab TPS (Hermanto)', username: 'penanggung_jawab', password: 'pj12345', role: 'Penanggung Jawab', status: 'Aktif' },
-      { id: 'USR-03', nama: 'Administrator HSE Lingkungan', username: 'admin_hse', password: 'admin123', role: 'Admin HSE', status: 'Aktif' },
-      { id: 'USR-04', nama: 'Kepala Teknik Tambang (KTT)', username: 'ktt', password: 'ktt12345', role: 'Manajemen / KTT', status: 'Aktif' }
+      { id: 'USR-01', nama: 'Operator Lapangan TPS', username: 'operator', password: 'operator123', role: 'Operator', status: 'Aktif', fotoProfil: '' },
+      { id: 'USR-02', nama: 'Penanggung Jawab TPS (Hermanto)', username: 'penanggung_jawab', password: 'pj12345', role: 'Penanggung Jawab', status: 'Aktif', fotoProfil: '' },
+      { id: 'USR-03', nama: 'Administrator HSE Lingkungan', username: 'admin_hse', password: 'admin123', role: 'Admin HSE', status: 'Aktif', fotoProfil: '' },
+      { id: 'USR-04', nama: 'Kepala Teknik Tambang (KTT)', username: 'ktt', password: 'ktt12345', role: 'Manajemen / KTT', status: 'Aktif', fotoProfil: '' }
     ];
     localStorage.setItem('db_users', JSON.stringify(defaultUsers));
   }
 
-  // 4. Sample Transaksi Limbah Masuk (Realistis PT EMJ)
+  // 4. Sample Transaksi Limbah Masuk
   if (!localStorage.getItem('db_limbah_masuk')) {
     const sampleMasuk = [
       {
@@ -81,6 +89,7 @@ function initLocalDatabase() {
         tanggalMasuk: '2026-09-01 08:30',
         kodeLimbah: 'B105d',
         namaLimbah: 'Minyak pelumas bekas (Oli hidrolik/mesin/gear)',
+        sumber: 'Workshop Alat Berat',
         jumlah: 1200,
         satuan: 'Liter',
         fotoUrl: '',
@@ -95,6 +104,7 @@ function initLocalDatabase() {
         tanggalMasuk: '2026-09-05 10:15',
         kodeLimbah: 'A102d',
         namaLimbah: 'Aki/baterai bekas',
+        sumber: 'Workshop Elektrik',
         jumlah: 450,
         satuan: 'Kg',
         fotoUrl: '',
@@ -109,6 +119,7 @@ function initLocalDatabase() {
         tanggalMasuk: '2026-09-10 14:00',
         kodeLimbah: 'B104d',
         namaLimbah: 'Kemasan bekas B3',
+        sumber: 'Gudang Pelumas & Kimia',
         jumlah: 85,
         satuan: 'Kg',
         fotoUrl: '',
@@ -119,16 +130,17 @@ function initLocalDatabase() {
         statusStok: 'Tersedia'
       },
       {
-        id: 'IN-20260625-0900', // Contoh mendekati masa simpan (H-7 alert)
+        id: 'IN-20260625-0900',
         tanggalMasuk: '2026-06-25 09:00',
         kodeLimbah: 'B109d',
         namaLimbah: 'Filter bekas fasilitas pencemaran udara',
+        sumber: 'Area Genset Powerhouse',
         jumlah: 70,
         satuan: 'Kg',
         fotoUrl: '',
         statusRintek: 'Terdaftar',
         batasSimpanHari: 90,
-        tanggalJatuhTempo: '2026-09-23', // Jatuh tempo dekat!
+        tanggalJatuhTempo: '2026-09-23',
         operator: 'Operator Lapangan',
         statusStok: 'Tersedia'
       }
@@ -167,18 +179,24 @@ function initLocalDatabase() {
     const sampleInspeksi = [
       { id: 'INSP-20260918-01', tanggal: '2026-09-18 09:00', itemChecklist: 'Alat Pemadam Api Ringan (APAR)', kondisi: 'Baik', catatan: 'Pressure gauge di zona hijau, pin segel utuh', operator: 'Operator Lapangan' },
       { id: 'INSP-20260918-02', tanggal: '2026-09-18 09:05', itemChecklist: 'Fasilitas Eyewash Station', kondisi: 'Baik', catatan: 'Aliran air bersih mengalir normal', operator: 'Operator Lapangan' },
-      { id: 'INSP-20260918-03', tanggal: '2026-09-18 09:10', itemChecklist: 'Saluran Drainase Ceceran & Bak Oil Catcher', kondisi: 'Baik', catatan: 'Bersih dari sumbatan serbuk', operator: 'Operator Lapangan' }
+      { id: 'INSP-20260918-03', tanggal: '2026-09-18 09:10', itemChecklist: 'Saluran Drainase Ceceran & Bak Oil Catcher (50x50x50 cm)', kondisi: 'Baik', catatan: 'Bersih dari sumbatan pasir/kotoran', operator: 'Operator Lapangan' }
     ];
     localStorage.setItem('db_inspeksi', JSON.stringify(sampleInspeksi));
   }
 
-  // 8. Neraca Limbah B3 (Sample Draft dengan 3-Tier E-sign)
+  // 8. Neraca Limbah B3 (Sample Awal dengan Nomor Resmi & Dokumen Kontrol)
   if (!localStorage.getItem('db_neraca')) {
     const sampleNeraca = [
       {
-        id: 'NERACA-2026-TW3',
-        periode: 'Triwulan III (Juli - September 2026)',
-        dataA: '2.805', // Ton Masuk
+        id: 'NERACA-2026-09',
+        nomorDokumen: '001/PLB3/ENV-HSE/IX/2026',
+        namaPerusahaan: 'PT. Etam Manunggal Jaya',
+        bidangUsaha: 'Pertambangan Batubara',
+        periode: 'September 2026',
+        bulan: 9,
+        tahun: 2026,
+        dokumenKontrol: 'Melampirkan Manifes Festronik',
+        dataA: '2.805',
         dataB: {
           disimpan: '1.805',
           dimanfaatkan: '0.000',
@@ -192,8 +210,8 @@ function initLocalDatabase() {
         dataD: '0.000',
         kinerja: '100.00%',
         status: 'Menunggu Pengesahan KTT',
-        ttdOperator: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="40"><text x="10" y="25" font-family="cursive" font-size="16" fill="black">Operator</text></svg>',
-        ttdPJ: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="40"><text x="10" y="25" font-family="cursive" font-size="16" fill="black">Hermanto</text></svg>',
+        ttdOperator: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="120" height="50"><text x="10" y="32" font-family="cursive" font-size="20" fill="black">Operator</text></svg>',
+        ttdPJ: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="120" height="50"><text x="10" y="32" font-family="cursive" font-size="20" fill="black">Hermanto</text></svg>',
         ttdKTT: '',
         createdAt: '2026-09-15'
       }
@@ -204,15 +222,105 @@ function initLocalDatabase() {
   // 9. Audit Logs
   if (!localStorage.getItem('db_audit')) {
     const sampleAudit = [
-      { id: 'LOG-01', user: 'System', aksi: 'SETUP_DATABASE', timestamp: '2026-09-01 08:00', keterangan: 'Database TPS LB3 01 berhasil diinisialisasi' },
-      { id: 'LOG-02', user: 'Operator Lapangan', aksi: 'INPUT_LIMBAH_MASUK', timestamp: '2026-09-01 08:30', keterangan: 'Mencatat oli bekas 1200 Liter' }
+      { id: 'LOG-01', user: 'System', aksi: 'SETUP_DATABASE', timestamp: '2026-09-01 08:00', keterangan: 'Database TPS LB3 01 berhasil diinisialisasi' }
     ];
     localStorage.setItem('db_audit', JSON.stringify(sampleAudit));
   }
+
+  // 10. Pengaturan Identitas Perusahaan
+  if (!localStorage.getItem('db_settings')) {
+    const defaultSettings = {
+      namaPerusahaan: 'PT. Etam Manunggal Jaya',
+      bidangUsaha: 'Pertambangan Batubara',
+      alamatKantor: 'Jalan S. Parman No. 6, Kota Samarinda, Kalimantan Timur',
+      telpPerusahaan: '0541-748920',
+      emailPerusahaan: 'info@etammanunggal.co.id',
+      lokasiTps: 'Desa Batuah, Kec. Loa Janan, Kab. Kutai Kartanegara, Kaltim (00°48\'04,6" LS / 117°04\'41,9" BT)',
+      luasTps: '52.5 m²',
+      kapasitasMaksTon: '20',
+      pjTeknis: 'Hermanto (Direktur / PJ TPS)',
+      logoBase64: '',
+      loginBgBase64: ''
+    };
+    localStorage.setItem('db_settings', JSON.stringify(defaultSettings));
+  }
+}
+
+function applyCompanySettingsUI() {
+  const cfg = JSON.parse(localStorage.getItem('db_settings') || '{}');
+  
+  if (cfg.namaPerusahaan) {
+    document.getElementById('authCompanyDisplay').textContent = cfg.namaPerusahaan;
+    document.getElementById('sidebarCompanyDisplay').textContent = cfg.namaPerusahaan;
+    document.getElementById('kopLogbookNamaPerusahaan').textContent = cfg.namaPerusahaan.toUpperCase();
+    document.getElementById('kopNeracaNamaPerusahaan').textContent = cfg.namaPerusahaan.toUpperCase();
+    document.getElementById('printNeracaPerusahaan').textContent = cfg.namaPerusahaan;
+    document.getElementById('neracaPerusahaanAuto').value = cfg.namaPerusahaan;
+  }
+
+  if (cfg.bidangUsaha) {
+    document.getElementById('printNeracaBidangUsaha').textContent = cfg.bidangUsaha;
+    document.getElementById('neracaBidangUsahaAuto').value = cfg.bidangUsaha;
+  }
+
+  if (cfg.alamatKantor) {
+    document.getElementById('authAddressDisplay').textContent = `${cfg.alamatKantor} • TPS LB3 01`;
+    document.getElementById('kopLogbookAlamat').textContent = cfg.alamatKantor;
+    document.getElementById('kopNeracaAlamat').textContent = cfg.alamatKantor;
+  }
+
+  if (cfg.telpPerusahaan || cfg.emailPerusahaan) {
+    const kontakStr = `Telp: ${cfg.telpPerusahaan || '-'} • Email: ${cfg.emailPerusahaan || '-'}`;
+    document.getElementById('kopLogbookKontak').textContent = kontakStr;
+    document.getElementById('kopNeracaKontak').textContent = kontakStr;
+  }
+
+  if (cfg.lokasiTps) {
+    document.getElementById('topbarLocationDisplay').textContent = cfg.lokasiTps.split('(')[0].trim();
+  }
+
+  if (cfg.kapasitasMaksTon) {
+    document.getElementById('statCapTonLabel').textContent = cfg.kapasitasMaksTon;
+  }
+
+  if (cfg.logoBase64) {
+    const sbLogoImg = document.getElementById('sidebarLogoImg');
+    const sbLogoIcon = document.getElementById('sidebarLogoIcon');
+    sbLogoImg.src = cfg.logoBase64;
+    sbLogoImg.classList.remove('hidden');
+    sbLogoIcon.classList.add('hidden');
+
+    const lgnLogoImg = document.getElementById('loginLogoImg');
+    const lgnLogoIcon = document.getElementById('loginLogoIcon');
+    lgnLogoImg.src = cfg.logoBase64;
+    lgnLogoImg.classList.remove('hidden');
+    lgnLogoIcon.classList.add('hidden');
+
+    document.getElementById('kopLogbookLogo').src = cfg.logoBase64;
+    document.getElementById('kopNeracaLogo').src = cfg.logoBase64;
+
+    const prev = document.getElementById('settingsLogoPreview');
+    prev.innerHTML = `<img src="${cfg.logoBase64}" class="w-full h-full object-contain">`;
+  }
+
+  if (cfg.loginBgBase64) {
+    const bgDiv = document.getElementById('authBackdropGraphic');
+    if (bgDiv) bgDiv.style.backgroundImage = `url('${cfg.loginBgBase64}')`;
+  }
+
+  document.getElementById('setPerusahaan').value = cfg.namaPerusahaan || '';
+  document.getElementById('setBidangUsaha').value = cfg.bidangUsaha || '';
+  document.getElementById('setAlamatKantor').value = cfg.alamatKantor || '';
+  document.getElementById('setTelp').value = cfg.telpPerusahaan || '';
+  document.getElementById('setEmail').value = cfg.emailPerusahaan || '';
+  document.getElementById('setLokasi').value = cfg.lokasiTps || '';
+  document.getElementById('setLuas').value = cfg.luasTps || '';
+  document.getElementById('setKapasitas').value = cfg.kapasitasMaksTon || '';
+  document.getElementById('setPJ').value = cfg.pjTeknis || '';
 }
 
 // ==========================================================================
-// 2. AUTHENTICATION & SESSION MANAGEMENT
+// 2. AUTHENTICATION & ROLE ACCESS CONTROL (RBAC - Revisi #5)
 // ==========================================================================
 function checkAuthSession() {
   const sessionStr = localStorage.getItem('enviromine_session');
@@ -246,12 +354,17 @@ function handleLoginSubmit(e) {
     return;
   }
 
-  // Berhasil Login
+  if (foundUser.status !== 'Aktif') {
+    showToast('Akun Anda dinonaktifkan. Hubungi Admin HSE.', 'error');
+    return;
+  }
+
   STATE.currentUser = {
     id: foundUser.id,
     nama: foundUser.nama,
     username: foundUser.username,
-    role: foundUser.role
+    role: foundUser.role,
+    fotoProfil: foundUser.fotoProfil || ''
   };
 
   localStorage.setItem('enviromine_session', JSON.stringify(STATE.currentUser));
@@ -263,7 +376,6 @@ function handleLoginSubmit(e) {
 function quickFillLogin(username, password) {
   document.getElementById('loginUsername').value = username;
   document.getElementById('loginPassword').value = password;
-  // Animasi klik login
   const btn = document.getElementById('btnLoginSubmit');
   btn.classList.add('ring-4', 'ring-vault-lime/50');
   setTimeout(() => {
@@ -293,17 +405,46 @@ function showAppShell() {
   document.getElementById('authView').classList.add('hidden');
   document.getElementById('appShell').classList.remove('hidden');
   
-  // Update Profile Info
-  document.getElementById('userNameDisplay').textContent = STATE.currentUser.nama;
-  document.getElementById('userRoleBadge').textContent = STATE.currentUser.role;
-  document.getElementById('userAvatar').textContent = STATE.currentUser.nama.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase();
-
-  // Role permissions check
-  applyRoleVisibility();
-
-  // Load Dashboard
+  updateUserSessionUI();
+  applyRoleVisibility(); // Enforce RBAC
   navigateTo('dashboard');
   lucide.createIcons();
+}
+
+function updateUserSessionUI() {
+  if (!STATE.currentUser) return;
+  document.getElementById('userNameDisplay').textContent = STATE.currentUser.nama;
+  document.getElementById('userRoleBadge').textContent = STATE.currentUser.role;
+
+  const avEl = document.getElementById('userAvatar');
+  if (STATE.currentUser.fotoProfil) {
+    avEl.innerHTML = `<img src="${STATE.currentUser.fotoProfil}" class="w-full h-full object-cover">`;
+  } else {
+    avEl.textContent = STATE.currentUser.nama.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase();
+  }
+}
+
+// RBAC: Operator tidak boleh mengakses manajemen pengguna & pengaturan TPS (Revisi #5)
+function applyRoleVisibility() {
+  if (!STATE.currentUser) return;
+  const role = STATE.currentUser.role;
+
+  const navUsers = document.getElementById('nav-users');
+  const navSettings = document.getElementById('nav-settings');
+  const adminSection = document.getElementById('sidebarSectionAdmin');
+
+  if (role === 'Operator') {
+    // Sembunyikan menu Users dan Settings untuk Operator
+    if (navUsers) navUsers.style.display = 'none';
+    if (navSettings) navSettings.style.display = 'none';
+  } else if (role === 'Penanggung Jawab') {
+    if (navUsers) navUsers.style.display = 'none';
+    if (navSettings) navSettings.style.display = 'flex';
+  } else {
+    // Admin HSE & KTT
+    if (navUsers) navUsers.style.display = 'flex';
+    if (navSettings) navSettings.style.display = 'flex';
+  }
 }
 
 function togglePasswordVisibility() {
@@ -321,35 +462,118 @@ function togglePasswordVisibility() {
 
 function handleForgotPassword() {
   alert('Permintaan reset password telah dikirimkan ke Admin HSE / Lingkungan.');
-  addAuditLog('User Guest', 'FORGOT_PASSWORD', 'Pengajuan bantuan reset password');
+  addAuditLog('User Guest', 'FORGOT_PASSWORD', 'Pengajuan reset password');
 }
 
-function applyRoleVisibility() {
-  const role = STATE.currentUser.role;
-  // Operator: sembunyikan menu admin rintek / users
-  // PJ TPS: dapat melihat penanganan khusus dan rintek
-  // Admin HSE: manajemen user dan master rintek
-  // KTT: melihat seluruh eksekutif & final neraca
-  const navUsers = document.getElementById('nav-users');
-  if (navUsers) {
-    if (role === 'Operator' || role === 'Penanggung Jawab') {
-      navUsers.style.opacity = '0.5';
-    } else {
-      navUsers.style.opacity = '1';
-    }
+// --- MODAL PROFIL PENGGUNA ---
+function openModalUserProfile() {
+  if (!STATE.currentUser) return;
+  const users = JSON.parse(localStorage.getItem('db_users') || '[]');
+  const u = users.find(usr => usr.id === STATE.currentUser.id) || STATE.currentUser;
+
+  document.getElementById('profNama').value = u.nama;
+  document.getElementById('profUsername').value = u.username;
+  document.getElementById('profRole').value = u.role;
+
+  document.getElementById('profCurrentPass').value = '';
+  document.getElementById('profNewPass').value = '';
+  document.getElementById('profConfirmPass').value = '';
+  STATE.tempProfilePhoto = u.fotoProfil || '';
+
+  renderProfilePhotoPreview(STATE.tempProfilePhoto, u.nama);
+  openModal('modalUserProfile');
+}
+
+function renderProfilePhotoPreview(photoUrl, name) {
+  const container = document.getElementById('profilePhotoPreview');
+  if (photoUrl) {
+    container.innerHTML = `<img src="${photoUrl}" class="w-full h-full object-cover">`;
+  } else {
+    const initials = (name || 'User').split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase();
+    container.innerHTML = initials;
   }
 }
 
+function handleProfilePhotoChange(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = (event) => {
+    STATE.tempProfilePhoto = event.target.result;
+    renderProfilePhotoPreview(STATE.tempProfilePhoto, document.getElementById('profNama').value);
+  };
+  reader.readAsDataURL(file);
+}
+
+function handleSaveUserProfile(e) {
+  e.preventDefault();
+  const nama = document.getElementById('profNama').value.trim();
+  const username = document.getElementById('profUsername').value.trim();
+  const curPass = document.getElementById('profCurrentPass').value;
+  const newPass = document.getElementById('profNewPass').value;
+  const confPass = document.getElementById('profConfirmPass').value;
+
+  const users = JSON.parse(localStorage.getItem('db_users') || '[]');
+  const idx = users.findIndex(u => u.id === STATE.currentUser.id);
+
+  if (idx === -1) {
+    showToast('Data user tidak ditemukan.', 'error');
+    return;
+  }
+
+  if (newPass) {
+    if (users[idx].password !== curPass) {
+      showToast('Password saat ini salah!', 'error');
+      return;
+    }
+    if (newPass.length < 5) {
+      showToast('Password baru minimal 5 karakter!', 'error');
+      return;
+    }
+    if (newPass !== confPass) {
+      showToast('Konfirmasi password baru tidak cocok!', 'error');
+      return;
+    }
+    users[idx].password = newPass;
+  }
+
+  users[idx].nama = nama;
+  users[idx].username = username;
+  if (STATE.tempProfilePhoto !== null) {
+    users[idx].fotoProfil = STATE.tempProfilePhoto;
+  }
+
+  localStorage.setItem('db_users', JSON.stringify(users));
+
+  STATE.currentUser.nama = nama;
+  STATE.currentUser.username = username;
+  STATE.currentUser.fotoProfil = users[idx].fotoProfil;
+  localStorage.setItem('enviromine_session', JSON.stringify(STATE.currentUser));
+
+  updateUserSessionUI();
+  addAuditLog(nama, 'UPDATE_PROFILE', 'Memperbarui profil akun & kata sandi');
+  showToast('Profil pengguna berhasil diperbarui!', 'success');
+  closeModal('modalUserProfile');
+}
+
 // ==========================================================================
-// 3. NAVIGATION & VIEW ROUTING
+// 3. NAVIGATION & ROUTING
 // ==========================================================================
 function navigateTo(viewName) {
+  // Blokir akses role Operator ke users & settings (Revisi #5)
+  if (STATE.currentUser && STATE.currentUser.role === 'Operator') {
+    if (viewName === 'users' || viewName === 'settings') {
+      showToast('Akses Dibatasi: Operator tidak memiliki wewenang untuk modul ini.', 'error');
+      return;
+    }
+  }
+
   STATE.activeView = viewName;
 
-  // Sembunyikan seluruh section view
   const views = [
     'dashboard', 'masuk', 'keluar', 'penanganan-khusus', 
-    'inspeksi', 'logbook', 'neraca', 'rintek', 'pihak-ketiga', 'users', 'settings'
+    'inspeksi', 'logbook', 'neraca', 'ttd-online', 'rintek', 'pihak-ketiga', 'users', 'settings'
   ];
 
   views.forEach(v => {
@@ -360,14 +584,12 @@ function navigateTo(viewName) {
     if (nav) nav.classList.remove('active');
   });
 
-  // Tampilkan view yang dipilih
   const targetView = document.getElementById(`view-${viewName}`);
   if (targetView) targetView.classList.remove('hidden');
 
   const targetNav = document.getElementById(`nav-${viewName}`);
   if (targetNav) targetNav.classList.add('active');
 
-  // Load data sesuai view
   switch (viewName) {
     case 'dashboard':
       renderDashboard();
@@ -389,6 +611,9 @@ function navigateTo(viewName) {
       break;
     case 'neraca':
       renderNeraca();
+      break;
+    case 'ttd-online':
+      renderStudioTtd(); // Studio TTD Online
       break;
     case 'rintek':
       renderMasterRintek();
@@ -427,8 +652,8 @@ function renderDashboard() {
   const keluar = JSON.parse(localStorage.getItem('db_limbah_keluar') || '[]');
   const pkList = JSON.parse(localStorage.getItem('db_penanganan_khusus') || '[]');
   const neracaList = JSON.parse(localStorage.getItem('db_neraca') || '[]');
+  const cfg = JSON.parse(localStorage.getItem('db_settings') || '{}');
 
-  // Hitung Stok Aktif di TPS
   let totalStokKg = 0;
   let h7AlertCount = 0;
   const stokKategoriMap = {};
@@ -440,7 +665,6 @@ function renderDashboard() {
       totalStokKg += jlh;
       stokKategoriMap[m.namaLimbah] = (stokKategoriMap[m.namaLimbah] || 0) + jlh;
 
-      // Cek jatuh tempo
       if (m.tanggalJatuhTempo) {
         const tempoDate = new Date(m.tanggalJatuhTempo);
         const diffDays = Math.ceil((tempoDate - today) / (1000 * 60 * 60 * 24));
@@ -455,8 +679,8 @@ function renderDashboard() {
   document.getElementById('statTotalStokKg').textContent = totalStokKg.toLocaleString('id-ID');
   document.getElementById('statTotalStokTon').textContent = `≈ ${totalStokTon} Ton`;
 
-  // Kapasitas TPS (Maksimal 20 Ton sesuai Rintek)
-  const kapasitasMaksKg = 20000;
+  const kapasitasTon = parseFloat(cfg.kapasitasMaksTon) || 20;
+  const kapasitasMaksKg = kapasitasTon * 1000;
   const persenKapasitas = Math.min(100, ((totalStokKg / kapasitasMaksKg) * 100)).toFixed(1);
   document.getElementById('statPersenKapasitas').textContent = `${persenKapasitas}%`;
 
@@ -478,7 +702,6 @@ function renderDashboard() {
     badgeKapasitas.textContent = 'Aman (<80%)';
   }
 
-  // Alert H-7
   document.getElementById('statAlertH7Count').textContent = h7AlertCount;
   const alertBanner = document.getElementById('complianceAlertBanner');
   if (h7AlertCount > 0) {
@@ -489,16 +712,15 @@ function renderDashboard() {
     alertBanner.classList.add('hidden');
   }
 
-  // Pending Approval
   const pendingPK = pkList.filter(p => p.status === 'Pending').length;
   const pendingNeraca = neracaList.filter(n => n.status !== 'Final').length;
   document.getElementById('statPendingApproval').textContent = pendingPK + pendingNeraca;
   document.getElementById('badgePendingPK').textContent = pendingPK;
 
-  // Breakdown Kategori
   const katContainer = document.getElementById('stokKategoriList');
   katContainer.innerHTML = '';
   const rintek = JSON.parse(localStorage.getItem('db_rintek') || '[]');
+  document.getElementById('dashRintekCountBadge').textContent = `${rintek.length} Terdaftar`;
 
   rintek.slice(0, 5).forEach(r => {
     const currentStok = stokKategoriMap[r.namaLimbah] || 0;
@@ -517,7 +739,6 @@ function renderDashboard() {
     katContainer.appendChild(itemEl);
   });
 
-  // Render Recent Transactions Table
   const recentTable = document.getElementById('dashboardRecentTableBody');
   recentTable.innerHTML = '';
   const recentItems = masuk.slice(-5).reverse();
@@ -550,7 +771,6 @@ function renderDashboard() {
     });
   }
 
-  // Render Chart.js
   renderTimbulanChart(masuk, keluar);
 }
 
@@ -562,7 +782,6 @@ function renderTimbulanChart(masuk, keluar) {
     STATE.chartInstance.destroy();
   }
 
-  // Bulan 6 terakhir
   const labels = ['Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober'];
   const dataMasuk = [1400, 1950, 2200, 1850, 2450, 2100];
   const dataKeluar = [1000, 1500, 1800, 1600, 2000, 1900];
@@ -575,7 +794,7 @@ function renderTimbulanChart(masuk, keluar) {
         {
           label: 'Limbah Masuk (Kg)',
           data: dataMasuk,
-          borderColor: '#d4f933', // Vault lime
+          borderColor: '#d4f933',
           backgroundColor: 'rgba(212, 249, 51, 0.08)',
           tension: 0.4,
           fill: true,
@@ -585,7 +804,7 @@ function renderTimbulanChart(masuk, keluar) {
         {
           label: 'Diserahkan ke Pihak Ketiga (Kg)',
           data: dataKeluar,
-          borderColor: '#38bdf8', // Cyan
+          borderColor: '#38bdf8',
           backgroundColor: 'rgba(56, 189, 248, 0.04)',
           tension: 0.4,
           fill: true,
@@ -597,39 +816,26 @@ function renderTimbulanChart(masuk, keluar) {
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      plugins: {
-        legend: { display: false },
-        tooltip: {
-          backgroundColor: '#1b1f2e',
-          titleColor: '#fff',
-          bodyColor: '#cbd5e1',
-          borderColor: 'rgba(255, 255, 255, 0.1)',
-          borderWidth: 1,
-          padding: 10
-        }
-      },
+      plugins: { legend: { display: false } },
       scales: {
-        x: {
-          grid: { color: 'rgba(255, 255, 255, 0.05)' },
-          ticks: { color: '#64748b' }
-        },
-        y: {
-          grid: { color: 'rgba(255, 255, 255, 0.05)' },
-          ticks: { color: '#64748b' }
-        }
+        x: { grid: { color: 'rgba(255, 255, 255, 0.05)' }, ticks: { color: '#64748b' } },
+        y: { grid: { color: 'rgba(255, 255, 255, 0.05)' }, ticks: { color: '#64748b' } }
       }
     }
   });
 }
 
 // --- 4.2 LIMBAH MASUK ---
-function renderLimbahMasuk() {
+function renderLimbahMasuk(filteredData = null) {
+  populateFilterMasukRintek();
+
   const table = document.getElementById('tableLimbahMasukBody');
-  const data = JSON.parse(localStorage.getItem('db_limbah_masuk') || '[]');
+  const rawData = JSON.parse(localStorage.getItem('db_limbah_masuk') || '[]');
+  const data = filteredData || rawData;
   table.innerHTML = '';
 
   if (data.length === 0) {
-    table.innerHTML = `<tr><td colspan="11" class="text-center py-6 text-slate-500">Belum ada data limbah masuk.</td></tr>`;
+    table.innerHTML = `<tr><td colspan="11" class="text-center py-6 text-slate-500">Tidak ada data limbah masuk yang cocok dengan filter.</td></tr>`;
     return;
   }
 
@@ -657,31 +863,63 @@ function renderLimbahMasuk() {
       <td class="font-mono text-vault-lime font-bold">${item.kodeLimbah}</td>
       <td class="font-semibold text-white">${item.namaLimbah}</td>
       <td class="font-mono font-bold">${item.jumlah} ${item.satuan}</td>
-      <td>
-        <span class="badge-status ${item.statusRintek === 'Terdaftar' ? 'badge-green' : 'badge-yellow'}">
-          ${item.statusRintek}
-        </span>
-      </td>
+      <td><span class="badge-status ${item.statusRintek === 'Terdaftar' ? 'badge-green' : 'badge-yellow'}">${item.statusRintek}</span></td>
       <td class="font-mono text-xs text-slate-300">${item.tanggalJatuhTempo || '-'}</td>
-      <td>
-        <span class="badge-status ${sisaBadge}">${sisaHari}</span>
-      </td>
+      <td><span class="badge-status ${sisaBadge}">${sisaHari}</span></td>
       <td class="text-slate-400">${item.operator}</td>
-      <td>
-        <span class="badge-status ${item.statusStok === 'Tersedia' ? 'badge-lime' : 'badge-blue'}">
-          ${item.statusStok}
-        </span>
-      </td>
+      <td><span class="badge-status ${item.statusStok === 'Tersedia' ? 'badge-lime' : 'badge-blue'}">${item.statusStok}</span></td>
       <td>
         ${item.statusStok === 'Tersedia' ? `
-          <button onclick="quickKeluarLimbah('${item.id}')" class="text-xs px-2.5 py-1 rounded-lg bg-sky-500/20 text-sky-300 hover:bg-sky-500/30">
-            Keluarkan
-          </button>
+          <button onclick="quickKeluarLimbah('${item.id}')" class="btn-action-sm btn-edit">Keluarkan</button>
         ` : `<span class="text-xs text-slate-500">-</span>`}
       </td>
     `;
     table.appendChild(tr);
   });
+}
+
+function populateFilterMasukRintek() {
+  const sel = document.getElementById('filterMasukRintek');
+  if (sel && sel.options.length <= 1) {
+    const rintek = JSON.parse(localStorage.getItem('db_rintek') || '[]');
+    rintek.forEach(r => {
+      sel.innerHTML += `<option value="${r.kodeLimbah}">${r.namaLimbah} (${r.kodeLimbah})</option>`;
+    });
+  }
+}
+
+function applyFilterLimbahMasuk() {
+  const search = (document.getElementById('filterMasukSearch').value || '').toLowerCase();
+  const kode = document.getElementById('filterMasukRintek').value;
+  const stok = document.getElementById('filterMasukStok').value;
+  const tglDari = document.getElementById('filterMasukTglDari').value;
+  const tglSampai = document.getElementById('filterMasukTglSampai').value;
+
+  let list = JSON.parse(localStorage.getItem('db_limbah_masuk') || '[]');
+
+  if (search) {
+    list = list.filter(m => m.namaLimbah.toLowerCase().includes(search) || m.id.toLowerCase().includes(search) || m.kodeLimbah.toLowerCase().includes(search));
+  }
+  if (kode) list = list.filter(m => m.kodeLimbah === kode);
+  if (stok) list = list.filter(m => m.statusStok === stok);
+  if (tglDari) list = list.filter(m => m.tanggalMasuk.slice(0, 10) >= tglDari);
+  if (tglSampai) list = list.filter(m => m.tanggalMasuk.slice(0, 10) <= tglSampai);
+
+  renderLimbahMasuk(list);
+}
+
+function resetFilterLimbahMasuk() {
+  document.getElementById('filterMasukSearch').value = '';
+  document.getElementById('filterMasukRintek').value = '';
+  document.getElementById('filterMasukStok').value = '';
+  document.getElementById('filterMasukTglDari').value = '';
+  document.getElementById('filterMasukTglSampai').value = '';
+  renderLimbahMasuk();
+}
+
+function refreshLimbahMasuk() {
+  resetFilterLimbahMasuk();
+  showToast('Data Limbah Masuk disegarkan.', 'info');
 }
 
 function openModalLimbahMasuk() {
@@ -729,7 +967,6 @@ function handleFormLimbahMasuk(e) {
   e.preventDefault();
   const selectVal = document.getElementById('masukJenisSelect').value;
   const kodeLimbah = document.getElementById('masukKode').value;
-  const karakteristik = document.getElementById('masukKarakteristik').value;
   const jumlah = parseFloat(document.getElementById('masukJumlah').value);
   const satuan = document.getElementById('masukSatuan').value;
   const tglMasuk = document.getElementById('masukTanggal').value;
@@ -737,18 +974,18 @@ function handleFormLimbahMasuk(e) {
 
   let namaLimbah = '';
   let statusRintek = 'Terdaftar';
+  let sumber = 'Operasional Tambang';
 
   if (selectVal === 'CUSTOM_NON_RINTEK') {
     statusRintek = 'Penanganan Khusus';
-    const alasan = document.getElementById('masukAlasanKhusus').value.trim() || 'Limbah di luar daftar Rintek TPS 01 PT EMJ';
     namaLimbah = prompt('Masukkan Nama Limbah Non-Rintek:', 'Residu Kimia Lab') || 'Limbah Khusus';
   } else {
     const rintekList = JSON.parse(localStorage.getItem('db_rintek') || '[]');
     const r = rintekList.find(item => item.kodeLimbah === kodeLimbah);
     namaLimbah = r ? r.namaLimbah : 'Limbah B3';
+    sumber = r ? r.sumber : 'Operasional';
   }
 
-  // Hitung Jatuh Tempo
   const tglMasukDate = new Date(tglMasuk);
   const tglTempo = new Date(tglMasukDate.getTime() + (batasHari * 24 * 60 * 60 * 1000));
   const tempoStr = tglTempo.toISOString().slice(0, 10);
@@ -761,6 +998,7 @@ function handleFormLimbahMasuk(e) {
     tanggalMasuk: tglMasuk.replace('T', ' '),
     kodeLimbah: kodeLimbah,
     namaLimbah: namaLimbah,
+    sumber: sumber,
     jumlah: jumlah,
     satuan: satuan,
     fotoUrl: '',
@@ -775,7 +1013,6 @@ function handleFormLimbahMasuk(e) {
   dbMasuk.push(newEntry);
   localStorage.setItem('db_limbah_masuk', JSON.stringify(dbMasuk));
 
-  // Jika Penanganan Khusus, masukkan ke antrian
   if (statusRintek === 'Penanganan Khusus') {
     const dbPK = JSON.parse(localStorage.getItem('db_penanganan_khusus') || '[]');
     dbPK.push({
@@ -789,9 +1026,9 @@ function handleFormLimbahMasuk(e) {
       catatan: '-'
     });
     localStorage.setItem('db_penanganan_khusus', JSON.stringify(dbPK));
-    showToast('Peringatan: Limbah masuk antrean Penanganan Khusus untuk ditelaah PJ TPS.', 'warning');
+    showToast('Peringatan: Masuk antrean Penanganan Khusus.', 'warning');
   } else {
-    showToast('Limbah masuk berhasil dicatat sesuai Rintek.', 'success');
+    showToast('Limbah masuk berhasil dicatat.', 'success');
   }
 
   addAuditLog(operatorName, 'INPUT_LIMBAH_MASUK', `Mencatat limbah masuk: ${namaLimbah} (${jumlah} ${satuan})`);
@@ -801,13 +1038,16 @@ function handleFormLimbahMasuk(e) {
 }
 
 // --- 4.3 LIMBAH KELUAR ---
-function renderLimbahKeluar() {
+function renderLimbahKeluar(filteredData = null) {
+  populateFilterKeluarPK();
+
   const table = document.getElementById('tableLimbahKeluarBody');
-  const data = JSON.parse(localStorage.getItem('db_limbah_keluar') || '[]');
+  const rawData = JSON.parse(localStorage.getItem('db_limbah_keluar') || '[]');
+  const data = filteredData || rawData;
   table.innerHTML = '';
 
   if (data.length === 0) {
-    table.innerHTML = `<tr><td colspan="9" class="text-center py-6 text-slate-500">Belum ada pencatatan pengeluaran limbah.</td></tr>`;
+    table.innerHTML = `<tr><td colspan="9" class="text-center py-6 text-slate-500">Tidak ada data limbah keluar yang cocok.</td></tr>`;
     return;
   }
 
@@ -828,14 +1068,51 @@ function renderLimbahKeluar() {
         <span class="text-emerald-400 block">Manifes: ${item.manifes}</span>
       </td>
       <td class="text-slate-400">${item.operator}</td>
-      <td>
-        <span class="badge-status badge-lime">
-          <i data-lucide="check" class="w-3 h-3"></i> Terkonfirmasi
-        </span>
-      </td>
+      <td><span class="badge-status badge-lime"><i data-lucide="check" class="w-3 h-3"></i> Terkonfirmasi</span></td>
     `;
     table.appendChild(tr);
   });
+}
+
+function populateFilterKeluarPK() {
+  const sel = document.getElementById('filterKeluarPK');
+  if (sel && sel.options.length <= 1) {
+    const pkList = JSON.parse(localStorage.getItem('db_pihak_ketiga') || '[]');
+    pkList.forEach(pk => {
+      sel.innerHTML += `<option value="${pk.namaPerusahaan}">${pk.namaPerusahaan}</option>`;
+    });
+  }
+}
+
+function applyFilterLimbahKeluar() {
+  const search = (document.getElementById('filterKeluarSearch').value || '').toLowerCase();
+  const pk = document.getElementById('filterKeluarPK').value;
+  const tglDari = document.getElementById('filterKeluarTglDari').value;
+  const tglSampai = document.getElementById('filterKeluarTglSampai').value;
+
+  let list = JSON.parse(localStorage.getItem('db_limbah_keluar') || '[]');
+
+  if (search) {
+    list = list.filter(k => (k.suratJalan && k.suratJalan.toLowerCase().includes(search)) || (k.manifes && k.manifes.toLowerCase().includes(search)) || k.namaLimbah.toLowerCase().includes(search));
+  }
+  if (pk) list = list.filter(k => k.tujuanPihakKetiga === pk);
+  if (tglDari) list = list.filter(k => k.tanggalKeluar.slice(0, 10) >= tglDari);
+  if (tglSampai) list = list.filter(k => k.tanggalKeluar.slice(0, 10) <= tglSampai);
+
+  renderLimbahKeluar(list);
+}
+
+function resetFilterLimbahKeluar() {
+  document.getElementById('filterKeluarSearch').value = '';
+  document.getElementById('filterKeluarPK').value = '';
+  document.getElementById('filterKeluarTglDari').value = '';
+  document.getElementById('filterKeluarTglSampai').value = '';
+  renderLimbahKeluar();
+}
+
+function refreshLimbahKeluar() {
+  resetFilterLimbahKeluar();
+  showToast('Data Limbah Keluar disegarkan.', 'info');
 }
 
 function openModalLimbahKeluar() {
@@ -848,7 +1125,6 @@ function openModalLimbahKeluar() {
     select.innerHTML += `<option value="${t.id}">${t.id} - ${t.namaLimbah} (Sisa: ${t.jumlah} ${t.satuan})</option>`;
   });
 
-  // Pihak Ketiga Dropdown
   const pkSelect = document.getElementById('keluarPihakKetigaSelect');
   const pihakKetiga = JSON.parse(localStorage.getItem('db_pihak_ketiga') || '[]');
   pkSelect.innerHTML = '';
@@ -892,12 +1168,9 @@ function handleFormLimbahKeluar(e) {
   }
 
   const itemMasuk = masukList[itemIdx];
-
-  // Update status limbah masuk
   itemMasuk.statusStok = 'Keluar';
   localStorage.setItem('db_limbah_masuk', JSON.stringify(masukList));
 
-  // Simpan record keluar
   const newOutId = 'OUT-' + new Date().toISOString().replace(/[-:T]/g, '').slice(0, 13);
   const operatorName = STATE.currentUser ? STATE.currentUser.nama : 'Operator Lapangan';
 
@@ -921,7 +1194,7 @@ function handleFormLimbahKeluar(e) {
   localStorage.setItem('db_limbah_keluar', JSON.stringify(keluarList));
 
   addAuditLog(operatorName, 'INPUT_LIMBAH_KELUAR', `Menyerahkan limbah ${itemMasuk.namaLimbah} (${jumlah} ${itemMasuk.satuan}) ke ${tujuan}`);
-  showToast('Pengeluaran limbah berhasil dicatat dan stok TPS diperbarui.', 'success');
+  showToast('Pengeluaran limbah berhasil dicatat.', 'success');
 
   closeModal('modalLimbahKeluar');
   renderLimbahKeluar();
@@ -956,12 +1229,8 @@ function renderPenangananKhusus() {
       <td>
         ${item.status === 'Pending' ? `
           <div class="flex items-center gap-1.5">
-            <button onclick="approvePK('${item.id}', true)" class="text-xs px-2.5 py-1 rounded-lg bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30">
-              Approve
-            </button>
-            <button onclick="approvePK('${item.id}', false)" class="text-xs px-2.5 py-1 rounded-lg bg-rose-500/20 text-rose-300 hover:bg-rose-500/30">
-              Tolak
-            </button>
+            <button onclick="approvePK('${item.id}', true)" class="btn-action-sm btn-edit">Approve</button>
+            <button onclick="approvePK('${item.id}', false)" class="btn-action-sm btn-delete">Tolak</button>
           </div>
         ` : `<span class="text-xs text-slate-500">Selesai</span>`}
       </td>
@@ -972,11 +1241,11 @@ function renderPenangananKhusus() {
 
 function approvePK(id, isApproved) {
   if (STATE.currentUser && STATE.currentUser.role !== 'Penanggung Jawab' && STATE.currentUser.role !== 'Manajemen / KTT') {
-    showToast('Akses ditolak: Hanya Penanggung Jawab TPS yang berwenang memberikan persetujuan penanganan khusus.', 'error');
+    showToast('Akses ditolak: Hanya Penanggung Jawab TPS yang berwenang.', 'error');
     return;
   }
 
-  const catatan = prompt(`Masukkan catatan tindak lanjut (${isApproved ? 'Persetujuan' : 'Penolakan'}):`, 'Disetujui untuk penyimpanan sementara blok khusus.') || '-';
+  const catatan = prompt(`Catatan telaah (${isApproved ? 'Persetujuan' : 'Penolakan'}):`, 'Disetujui untuk penyimpanan sementara.') || '-';
   const list = JSON.parse(localStorage.getItem('db_penanganan_khusus') || '[]');
   const item = list.find(p => p.id === id);
 
@@ -986,21 +1255,22 @@ function approvePK(id, isApproved) {
     item.catatan = catatan;
     localStorage.setItem('db_penanganan_khusus', JSON.stringify(list));
 
-    addAuditLog(item.approver, 'APPROVAL_PENANGANAN_KHUSUS', `${item.status} untuk ${id} (${catatan})`);
-    showToast(`Status penanganan khusus diperbarui menjadi: ${item.status}`, 'info');
+    addAuditLog(item.approver, 'APPROVAL_PENANGANAN_KHUSUS', `${item.status} untuk ${id}`);
+    showToast(`Status penanganan khusus diperbarui: ${item.status}`, 'info');
     renderPenangananKhusus();
     renderDashboard();
   }
 }
 
 // --- 4.5 INSPEKSI TPS K3L ---
-function renderInspeksi() {
+function renderInspeksi(filteredData = null) {
   const table = document.getElementById('tableInspeksiBody');
-  const data = JSON.parse(localStorage.getItem('db_inspeksi') || '[]');
+  const rawData = JSON.parse(localStorage.getItem('db_inspeksi') || '[]');
+  const data = filteredData || rawData;
   table.innerHTML = '';
 
   if (data.length === 0) {
-    table.innerHTML = `<tr><td colspan="7" class="text-center py-6 text-slate-500">Belum ada riwayat inspeksi sarana K3L.</td></tr>`;
+    table.innerHTML = `<tr><td colspan="7" class="text-center py-6 text-slate-500">Belum ada riwayat inspeksi yang cocok.</td></tr>`;
     return;
   }
 
@@ -1016,11 +1286,38 @@ function renderInspeksi() {
         </span>
       </td>
       <td class="text-xs text-slate-300">${item.catatan || '-'}</td>
-      <td class="text-xs text-slate-400">Tersimpan</td>
       <td class="text-slate-400">${item.operator}</td>
+      <td>
+        <div class="flex items-center gap-1.5">
+          <button onclick="openModalEditInspeksi('${item.id}')" class="btn-action-sm btn-edit" title="Edit Catatan"><i data-lucide="edit-2" class="w-3.5 h-3.5"></i></button>
+          <button onclick="deleteInspeksi('${item.id}')" class="btn-action-sm btn-delete" title="Hapus"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
+        </div>
+      </td>
     `;
     table.appendChild(tr);
   });
+}
+
+function applyFilterInspeksi() {
+  const kondisi = document.getElementById('filterInspeksiKondisi').value;
+  const tgl = document.getElementById('filterInspeksiTgl').value;
+  let list = JSON.parse(localStorage.getItem('db_inspeksi') || '[]');
+
+  if (kondisi) list = list.filter(i => i.kondisi === kondisi);
+  if (tgl) list = list.filter(i => i.tanggal.slice(0, 10) === tgl);
+
+  renderInspeksi(list);
+}
+
+function resetFilterInspeksi() {
+  document.getElementById('filterInspeksiKondisi').value = '';
+  document.getElementById('filterInspeksiTgl').value = '';
+  renderInspeksi();
+}
+
+function refreshInspeksi() {
+  resetFilterInspeksi();
+  showToast('Data Inspeksi TPS disegarkan.', 'info');
 }
 
 function openModalInspeksi() {
@@ -1038,7 +1335,7 @@ function openModalInspeksi() {
             <input type="radio" name="kondisi_${idx}" value="Baik" checked class="text-emerald-500"> Baik
           </label>
           <label class="flex items-center gap-1 text-xs text-rose-400 cursor-pointer">
-            <input type="radio" name="kondisi_${idx}" value="Rusak" class="text-rose-500"> Rusak / Perlu Perbaikan
+            <input type="radio" name="kondisi_${idx}" value="Rusak" class="text-rose-500"> Rusak / Perbaikan
           </label>
         </div>
       </div>
@@ -1067,7 +1364,6 @@ function handleFormInspeksi(e) {
     }
 
     if (selectedKondisi === 'Rusak') foundRusak = true;
-
     const catatan = document.getElementById(`catatan_${idx}`).value;
 
     currentInspeksi.push({
@@ -1084,30 +1380,73 @@ function handleFormInspeksi(e) {
   addAuditLog(operatorName, 'INSPEKSI_TPS', `Melakukan checklist inspeksi K3L (${batchId})`);
 
   if (foundRusak) {
-    showToast('PERINGATAN K3L: Ditemukan sarana berstatus RUSAK. Notifikasi otomatis terkirim ke Penanggung Jawab!', 'error');
+    showToast('PERINGATAN K3L: Ditemukan sarana RUSAK. Notifikasi otomatis ke PJ TPS!', 'error');
   } else {
-    showToast('Checklist inspeksi K3L berhasil disimpan. Seluruh sarana TPS kondisi BAIK.', 'success');
+    showToast('Checklist inspeksi disimpan. Kondisi sarana BAIK.', 'success');
   }
 
   closeModal('modalInspeksi');
   renderInspeksi();
 }
 
-// --- 4.6 LOGBOOK PERMEN LHK NO. 6/2021 ---
-function renderLogbook() {
+function openModalEditInspeksi(id) {
+  const list = JSON.parse(localStorage.getItem('db_inspeksi') || '[]');
+  const item = list.find(i => i.id === id);
+  if (!item) return;
+
+  document.getElementById('editInspeksiId').value = item.id;
+  document.getElementById('editInspeksiItem').value = item.itemChecklist;
+  document.getElementById('editInspeksiKondisi').value = item.kondisi;
+  document.getElementById('editInspeksiCatatan').value = item.catatan || '';
+
+  openModal('modalEditInspeksi');
+}
+
+function handleSaveEditInspeksi(e) {
+  e.preventDefault();
+  const id = document.getElementById('editInspeksiId').value;
+  const kondisi = document.getElementById('editInspeksiKondisi').value;
+  const catatan = document.getElementById('editInspeksiCatatan').value;
+
+  const list = JSON.parse(localStorage.getItem('db_inspeksi') || '[]');
+  const item = list.find(i => i.id === id);
+  if (item) {
+    item.kondisi = kondisi;
+    item.catatan = catatan;
+    localStorage.setItem('db_inspeksi', JSON.stringify(list));
+    addAuditLog(STATE.currentUser ? STATE.currentUser.nama : 'Operator', 'EDIT_INSPEKSI', `Mengubah inspeksi ${id}`);
+    showToast('Catatan inspeksi berhasil diperbarui.', 'success');
+    closeModal('modalEditInspeksi');
+    renderInspeksi();
+  }
+}
+
+function deleteInspeksi(id) {
+  if (confirm(`Apakah Anda yakin ingin menghapus data inspeksi ${id}?`)) {
+    let list = JSON.parse(localStorage.getItem('db_inspeksi') || '[]');
+    list = list.filter(i => i.id !== id);
+    localStorage.setItem('db_inspeksi', JSON.stringify(list));
+    addAuditLog(STATE.currentUser ? STATE.currentUser.nama : 'Operator', 'DELETE_INSPEKSI', `Menghapus data inspeksi ${id}`);
+    showToast('Data inspeksi berhasil dihapus.', 'info');
+    renderInspeksi();
+  }
+}
+
+// --- 4.6 LOGBOOK PERMEN LHK (DENGAN FILTER BULAN & TAHUN - Revisi #3) ---
+function renderLogbook(filteredData = null) {
+  populateFilterLogbookKode();
+
   const table = document.getElementById('tableLogbookBody');
-  const masuk = JSON.parse(localStorage.getItem('db_limbah_masuk') || '[]');
+  const masuk = filteredData || getFilteredLogbookData();
   const keluar = JSON.parse(localStorage.getItem('db_limbah_keluar') || '[]');
 
-  document.getElementById('logbookPrintDate').textContent = new Date().toLocaleString('id-ID');
   table.innerHTML = '';
 
   if (masuk.length === 0) {
-    table.innerHTML = `<tr><td colspan="10" class="text-center py-6 text-slate-500">Belum ada data logbook.</td></tr>`;
+    table.innerHTML = `<tr><td colspan="10" class="text-center py-6 text-slate-500">Tidak ada data logbook pada periode yang dipilih.</td></tr>`;
     return;
   }
 
-  // Index map keluar by refIdMasuk
   const mapKeluar = {};
   keluar.forEach(k => { mapKeluar[k.refIdMasuk] = k; });
 
@@ -1134,175 +1473,254 @@ function renderLogbook() {
   });
 }
 
+function getFilteredLogbookData() {
+  const bulan = document.getElementById('filterLogbookBulan') ? document.getElementById('filterLogbookBulan').value : '';
+  const tahun = document.getElementById('filterLogbookTahun') ? document.getElementById('filterLogbookTahun').value : '';
+  const kode = document.getElementById('filterLogbookKode') ? document.getElementById('filterLogbookKode').value : '';
+
+  let list = JSON.parse(localStorage.getItem('db_limbah_masuk') || '[]');
+
+  if (tahun) {
+    list = list.filter(m => {
+      if (!m.tanggalMasuk) return false;
+      const d = new Date(m.tanggalMasuk);
+      if (!isNaN(d.getTime())) {
+        return d.getFullYear().toString() === tahun;
+      }
+      return m.tanggalMasuk.slice(0, 4) === tahun;
+    });
+  }
+  if (bulan) {
+    list = list.filter(m => {
+      if (!m.tanggalMasuk) return false;
+      const d = new Date(m.tanggalMasuk);
+      if (!isNaN(d.getTime())) {
+        const mStr = ('0' + (d.getMonth() + 1)).slice(-2);
+        return mStr === bulan;
+      }
+      return m.tanggalMasuk.slice(5, 7) === bulan;
+    });
+  }
+  if (kode) {
+    list = list.filter(m => m.kodeLimbah === kode);
+  }
+  return list;
+}
+
+function populateFilterLogbookKode() {
+  const sel = document.getElementById('filterLogbookKode');
+  if (sel && sel.options.length <= 1) {
+    const rintek = JSON.parse(localStorage.getItem('db_rintek') || '[]');
+    rintek.forEach(r => {
+      sel.innerHTML += `<option value="${r.kodeLimbah}">${r.namaLimbah} (${r.kodeLimbah})</option>`;
+    });
+  }
+}
+
+function applyFilterLogbook() {
+  renderLogbook(getFilteredLogbookData());
+}
+
+function resetFilterLogbook() {
+  if (document.getElementById('filterLogbookBulan')) document.getElementById('filterLogbookBulan').value = '';
+  if (document.getElementById('filterLogbookTahun')) document.getElementById('filterLogbookTahun').value = '';
+  if (document.getElementById('filterLogbookKode')) document.getElementById('filterLogbookKode').value = '';
+  renderLogbook(JSON.parse(localStorage.getItem('db_limbah_masuk') || '[]'));
+}
+
+function refreshLogbook() {
+  applyFilterLogbook();
+  showToast('Logbook Permen LHK disegarkan sesuai filter.', 'info');
+}
+
+// --- CETAK LOGBOOK LANDSCAPE LAMPIRAN 1 (SESUAI PERIODE - Revisi #2 & #3) ---
+function printOfficialLogbookLandscape() {
+  const cfg = JSON.parse(localStorage.getItem('db_settings') || '{}');
+  const masuk = getFilteredLogbookData(); // Sesuai periode yang ditentukan
+  const keluar = JSON.parse(localStorage.getItem('db_limbah_keluar') || '[]');
+
+  // KOP Align Left Text
+  document.getElementById('kopLogbookNamaPerusahaan').textContent = (cfg.namaPerusahaan || 'PT. ETAM MANUNGGAL JAYA').toUpperCase();
+  document.getElementById('kopLogbookAlamat').textContent = cfg.alamatKantor || 'Jalan S. Parman No. 6, Kota Samarinda, Kalimantan Timur';
+  document.getElementById('kopLogbookKontak').textContent = `Telp: ${cfg.telpPerusahaan || '-'} • Email: ${cfg.emailPerusahaan || '-'}`;
+  if (cfg.logoBase64) {
+    document.getElementById('kopLogbookLogo').src = cfg.logoBase64;
+    document.getElementById('kopLogbookLogo').style.display = 'block';
+  } else {
+    document.getElementById('kopLogbookLogo').style.display = 'none';
+  }
+
+  // Header Periode Terpilih
+  const bVal = document.getElementById('filterLogbookBulan').value;
+  const tVal = document.getElementById('filterLogbookTahun').value;
+  let periodeStr = 'Semua Periode';
+  if (bVal && tVal) {
+    periodeStr = `${BULAN_NAMA[parseInt(bVal) - 1]} ${tVal}`;
+  } else if (tVal) {
+    periodeStr = `Tahun ${tVal}`;
+  }
+  document.getElementById('printLogbookPeriodeText').textContent = periodeStr;
+
+  const months = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+  const now = new Date();
+  const tglFormatted = `${now.getDate()} ${months[now.getMonth()]} ${now.getFullYear()}`;
+  document.getElementById('printLogbookTanggal').textContent = tglFormatted;
+  document.getElementById('printLogbookLokasi').textContent = 'Batuah';
+
+  const opName = STATE.currentUser ? STATE.currentUser.nama : 'Operator Lapangan';
+  document.getElementById('printLogbookOperatorName').textContent = opName;
+
+  // Cek jika operator memiliki spesimen TTD tersimpan
+  const savedTtd = getSavedUserSignature();
+  const ttdBox = document.getElementById('printLogbookTtdBox');
+  if (savedTtd) {
+    ttdBox.innerHTML = `<img src="${savedTtd}" style="max-height: 50px;">`;
+  } else {
+    ttdBox.innerHTML = '';
+  }
+
+  const mapKeluar = {};
+  keluar.forEach(k => { mapKeluar[k.refIdMasuk] = k; });
+
+  const tbody = document.getElementById('printLogbookTableBody');
+  tbody.innerHTML = '';
+
+  if (masuk.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="11" style="text-align: center; padding: 20px;">Tidak ada catatan limbah B3 pada periode ${periodeStr}.</td></tr>`;
+  } else {
+    masuk.forEach((m, idx) => {
+      const k = mapKeluar[m.id];
+      const jmlMasuk = parseFloat(m.jumlah) || 0;
+      const jmlKeluar = k ? (parseFloat(k.jumlah) || 0) : 0;
+      const sisa = Math.max(0, jmlMasuk - jmlKeluar);
+
+      const tglMasukFormatted = formatDateSlashes(m.tanggalMasuk);
+      const tglTempoFormatted = formatDateSlashes(m.tanggalJatuhTempo);
+      const tglKeluarFormatted = k ? formatDateSlashes(k.tanggalKeluar) : '-';
+      const buktiDok = k ? `${k.suratJalan || ''} / ${k.manifes || ''}` : '-';
+
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td style="text-align: center;">${idx + 1}</td>
+        <td><strong>${m.namaLimbah}</strong><br><span style="font-size: 7.5pt; color: #555;">Kode: ${m.kodeLimbah}</span></td>
+        <td style="text-align: center;">${tglMasukFormatted}</td>
+        <td>${m.sumber || 'Workshop Tambang'}</td>
+        <td style="text-align: right; font-weight: bold;">${jmlMasuk.toLocaleString('id-ID')} ${m.satuan}</td>
+        <td style="text-align: center;">${tglTempoFormatted}</td>
+        <td style="text-align: center;">${tglKeluarFormatted}</td>
+        <td style="text-align: right;">${k ? `${jmlKeluar.toLocaleString('id-ID')} ${m.satuan}` : '-'}</td>
+        <td>${k ? k.tujuanPihakKetiga : '-'}</td>
+        <td style="font-size: 7.5pt;">${buktiDok}</td>
+        <td style="text-align: right; font-weight: bold;">${sisa.toLocaleString('id-ID')} ${m.satuan}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
+  document.body.className = 'print-landscape';
+  const printEl = document.getElementById('printLogbookLandscapeContainer');
+  printEl.classList.add('active-print');
+
+  setTimeout(() => {
+    window.print();
+    printEl.classList.remove('active-print');
+    document.body.className = '';
+  }, 200);
+}
+
+function formatDateSlashes(dateStr) {
+  if (!dateStr || dateStr === '-') return '-';
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr;
+    const day = ('0' + d.getDate()).slice(-2);
+    const m = ('0' + (d.getMonth() + 1)).slice(-2);
+    const y = d.getFullYear();
+    return `${day}/${m}/${y}`;
+  } catch(e) {
+    return dateStr;
+  }
+}
+
 function exportLogbookCSV() {
-  const masuk = JSON.parse(localStorage.getItem('db_limbah_masuk') || '[]');
+  const masuk = getFilteredLogbookData();
   const keluar = JSON.parse(localStorage.getItem('db_limbah_keluar') || '[]');
   const mapKeluar = {};
   keluar.forEach(k => { mapKeluar[k.refIdMasuk] = k; });
 
-  let csvContent = '\uFEFF'; // UTF-8 BOM
-  csvContent += 'No,Tanggal Masuk,Kode Limbah,Nama Limbah,Jumlah Masuk,Satuan,Tanggal Keluar,Tujuan Penyerahan,Jumlah Keluar,Sisa di TPS,Petugas Paraf\n';
+  const bVal = document.getElementById('filterLogbookBulan').value;
+  const tVal = document.getElementById('filterLogbookTahun').value;
+  const periodeLabel = (bVal && tVal) ? `${BULAN_NAMA[parseInt(bVal) - 1]}_${tVal}` : 'Semua';
+
+  let csvContent = '\uFEFF';
+  csvContent += 'No,Jenis Limbah B3 Masuk,Tanggal Masuk,Sumber Limbah B3,Jumlah Masuk,Satuan,Maksimal Penyimpanan s/d,Tanggal Keluar,Jumlah Keluar,Tujuan Penyerahan,Bukti Nomor Dokumen,Sisa Limbah di TPS,Paraf Petugas\n';
 
   masuk.forEach((m, idx) => {
     const k = mapKeluar[m.id];
     const jmlMasuk = parseFloat(m.jumlah) || 0;
     const jmlKeluar = k ? (parseFloat(k.jumlah) || 0) : 0;
     const sisa = Math.max(0, jmlMasuk - jmlKeluar);
+    const buktiDok = k ? `${k.suratJalan} / ${k.manifes}` : '-';
 
-    csvContent += `"${idx + 1}","${m.tanggalMasuk}","${m.kodeLimbah}","${m.namaLimbah}","${jmlMasuk}","${m.satuan}","${k ? k.tanggalKeluar : '-'}","${k ? k.tujuanPihakKetiga : '-'}","${jmlKeluar}","${sisa}","${m.operator}"\n`;
+    csvContent += `"${idx + 1}","${m.namaLimbah} (${m.kodeLimbah})","${m.tanggalMasuk}","${m.sumber || 'Workshop'}","${jmlMasuk}","${m.satuan}","${m.tanggalJatuhTempo || '-'}","${k ? k.tanggalKeluar : '-'}","${jmlKeluar}","${k ? k.tujuanPihakKetiga : '-'}","${buktiDok}","${sisa}","${m.operator}"\n`;
   });
 
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.setAttribute('href', url);
-  link.setAttribute('download', `Logbook_LB3_PT_EMJ_${new Date().toISOString().slice(0, 10)}.csv`);
+  link.setAttribute('download', `Logbook_Lampiran1_PermenLHK_${periodeLabel}.csv`);
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
 
-  showToast('File CSV Logbook berhasil diunduh.', 'success');
+  showToast(`File CSV Logbook periode ${periodeLabel} berhasil diunduh.`, 'success');
 }
 
-// --- 4.7 NERACA LIMBAH B3 & 3-TIER E-SIGN ---
-function renderNeraca() {
-  const container = document.getElementById('neracaListContainer');
+// --- 4.7 NERACA LIMBAH B3 & GENERATE NOMOR OTOMATIS (Revisi #2 & #3) ---
+function getRomanMonth(monthNum) {
+  const roman = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII'];
+  return roman[parseInt(monthNum) - 1] || 'I';
+}
+
+function generateNomorNeraca(month, year) {
   const neracaList = JSON.parse(localStorage.getItem('db_neraca') || '[]');
-  container.innerHTML = '';
-
-  if (neracaList.length === 0) {
-    container.innerHTML = `
-      <div class="data-card text-center py-12 text-slate-400">
-        <i data-lucide="scale" class="w-12 h-12 mx-auto text-slate-600 mb-3"></i>
-        <p class="font-bold text-white">Belum Ada Draft Neraca Limbah</p>
-        <p class="text-xs mt-1">Klik tombol "+ Generate Draft Neraca Baru" untuk membuat neraca dari akumulasi transaksi logbook.</p>
-      </div>
-    `;
-    return;
-  }
-
-  neracaList.forEach(n => {
-    const card = document.createElement('div');
-    card.className = 'data-card space-y-6';
-    card.innerHTML = `
-      <!-- Header Neraca -->
-      <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-vault-border gap-2">
-        <div>
-          <span class="text-[10px] font-mono font-bold text-vault-lime uppercase tracking-widest">NERACA LIMBAH B3 RESMI (LAMPIRAN IX)</span>
-          <h3 class="text-lg font-bold text-white">${n.periode}</h3>
-          <p class="text-xs text-slate-400">PT. Etam Manunggal Jaya &bull; Dokumen ID: <span class="font-mono text-sky-400">${n.id}</span></p>
-        </div>
-        <div class="flex items-center gap-2">
-          <span class="badge-status ${n.status === 'Final' ? 'badge-green' : 'badge-yellow'} font-bold">
-            ${n.status}
-          </span>
-          <button onclick="window.print()" class="btn-primary-pill !w-auto !py-1.5 !px-3 text-xs bg-slate-800">
-            <i data-lucide="printer" class="w-3.5 h-3.5"></i> Cetak Neraca
-          </button>
-        </div>
-      </div>
-
-      <!-- Komponen A, B, C, D Table -->
-      <div class="overflow-x-auto rounded-xl border border-vault-border">
-        <table class="regulatory-table custom-table text-xs">
-          <thead>
-            <tr class="bg-slate-800">
-              <th>Komponen Neraca (Permen LHK No. 6/2021)</th>
-              <th>Keterangan / Uraian</th>
-              <th class="text-right">Jumlah (Ton)</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td class="font-bold text-vault-lime font-mono">A. TOTAL LIMBAH DIHASILKAN</td>
-              <td>Akumulasi seluruh limbah B3 masuk ke TPS LB3 01</td>
-              <td class="font-mono font-bold text-right text-white">${n.dataA} Ton</td>
-            </tr>
-            <tr>
-              <td class="font-bold text-sky-400 font-mono">B. PERLAKUAN LIMBAH B3</td>
-              <td>
-                &bull; Diserahkan ke Pihak Ketiga: <strong>${n.dataB.diserahkanPihakKetiga} Ton</strong><br>
-                &bull; Disimpan di TPS 01: <strong>${n.dataB.disimpan} Ton</strong>
-              </td>
-              <td class="font-mono font-bold text-right text-white">${(parseFloat(n.dataB.diserahkanPihakKetiga) + parseFloat(n.dataB.disimpan)).toFixed(3)} Ton</td>
-            </tr>
-            <tr>
-              <td class="font-bold text-slate-400 font-mono">C. RESIDU</td>
-              <td>Residu dari proses penanganan internal</td>
-              <td class="font-mono font-bold text-right text-slate-400">${n.dataC} Ton</td>
-            </tr>
-            <tr>
-              <td class="font-bold text-slate-400 font-mono">D. BELUM TERKELOLA</td>
-              <td>Limbah tercecer / belum tertangani</td>
-              <td class="font-mono font-bold text-right text-slate-400">${n.dataD} Ton</td>
-            </tr>
-            <tr class="bg-slate-900 font-bold">
-              <td colspan="2" class="text-white">KINERJA PENGELOLAAN LIMBAH B3: [ (A - (C+D)) / A ] &times; 100%</td>
-              <td class="text-right text-vault-lime font-mono text-sm">${n.kinerja}</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      <!-- 3-Tier E-Signature Workflow Box -->
-      <div>
-        <h4 class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">
-          Verifikasi & Pengesahan Digital Berjenjang (3 Tingkat)
-        </h4>
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          
-          <!-- Tier 1: Operator Lapangan -->
-          <div class="p-4 rounded-2xl bg-slate-900/80 border ${n.ttdOperator ? 'border-emerald-500/40' : 'border-slate-800'} text-center space-y-2">
-            <span class="text-[10px] uppercase font-bold text-slate-400">1. Penyusun Laporan</span>
-            <p class="text-xs font-bold text-white">Operator TPS LB3</p>
-            <div class="h-20 flex items-center justify-center border border-dashed border-slate-800 rounded-xl bg-slate-950/60 p-1">
-              ${n.ttdOperator ? `<img src="${n.ttdOperator}" class="max-h-16 mx-auto">` : `<span class="text-[11px] text-slate-600 italic">Belum diparaf</span>`}
-            </div>
-            ${!n.ttdOperator ? `
-              <button onclick="openSignatureModal('${n.id}', 'Operator')" class="btn-primary-pill !w-full !py-1.5 text-xs">
-                Paraf Operator
-              </button>
-            ` : `<span class="text-[11px] text-emerald-400 font-mono font-bold flex items-center justify-center gap-1"><i data-lucide="check" class="w-3.5 h-3.5"></i> Terverifikasi</span>`}
-          </div>
-
-          <!-- Tier 2: Penanggung Jawab TPS -->
-          <div class="p-4 rounded-2xl bg-slate-900/80 border ${n.ttdPJ ? 'border-emerald-500/40' : 'border-slate-800'} text-center space-y-2">
-            <span class="text-[10px] uppercase font-bold text-slate-400">2. Pemeriksa Teknis</span>
-            <p class="text-xs font-bold text-white">Penanggung Jawab TPS</p>
-            <div class="h-20 flex items-center justify-center border border-dashed border-slate-800 rounded-xl bg-slate-950/60 p-1">
-              ${n.ttdPJ ? `<img src="${n.ttdPJ}" class="max-h-16 mx-auto">` : `<span class="text-[11px] text-slate-600 italic">Menunggu</span>`}
-            </div>
-            ${!n.ttdPJ && n.ttdOperator ? `
-              <button onclick="openSignatureModal('${n.id}', 'Penanggung Jawab')" class="btn-lime-pill !w-full !py-1.5 text-xs justify-center">
-                Tanda Tangan PJ
-              </button>
-            ` : n.ttdPJ ? `<span class="text-[11px] text-emerald-400 font-mono font-bold flex items-center justify-center gap-1"><i data-lucide="check" class="w-3.5 h-3.5"></i> Disetujui PJ</span>` : `<span class="text-[11px] text-slate-500">Antrean Level 2</span>`}
-          </div>
-
-          <!-- Tier 3: Kepala Teknik Tambang (KTT) -->
-          <div class="p-4 rounded-2xl bg-slate-900/80 border ${n.ttdKTT ? 'border-emerald-500/40' : 'border-slate-800'} text-center space-y-2">
-            <span class="text-[10px] uppercase font-bold text-slate-400">3. Pengesahan Final Hukum</span>
-            <p class="text-xs font-bold text-white">Kepala Teknik Tambang (KTT)</p>
-            <div class="h-20 flex items-center justify-center border border-dashed border-slate-800 rounded-xl bg-slate-950/60 p-1">
-              ${n.ttdKTT ? `<img src="${n.ttdKTT}" class="max-h-16 mx-auto">` : `<span class="text-[11px] text-slate-600 italic">Menunggu PJ</span>`}
-            </div>
-            ${!n.ttdKTT && n.ttdPJ ? `
-              <button onclick="openSignatureModal('${n.id}', 'Manajemen / KTT')" class="btn-primary-pill !w-full !py-1.5 text-xs bg-purple-600 hover:bg-purple-500">
-                Sahkan (KTT)
-              </button>
-            ` : n.ttdKTT ? `<span class="text-[11px] text-purple-400 font-mono font-bold flex items-center justify-center gap-1"><i data-lucide="award" class="w-3.5 h-3.5"></i> Disahkan KTT (Final)</span>` : `<span class="text-[11px] text-slate-500">Antrean Level 3</span>`}
-          </div>
-
-        </div>
-      </div>
-    `;
-    container.appendChild(card);
-  });
+  const nextNumber = ('00' + (neracaList.length + 1)).slice(-3);
+  const roman = getRomanMonth(month);
+  return `${nextNumber}/PLB3/ENV-HSE/${roman}/${year}`;
 }
 
-function generateDraftNeracaPrompt() {
-  const periode = prompt('Masukkan Nama Periode Neraca (misal: Triwulan III 2026):', 'Triwulan III (Juli - September 2026)');
-  if (!periode) return;
+function openModalCreateNeraca() {
+  const cfg = JSON.parse(localStorage.getItem('db_settings') || '{}');
+  document.getElementById('neracaPerusahaanAuto').value = cfg.namaPerusahaan || 'PT. Etam Manunggal Jaya';
+  document.getElementById('neracaBidangUsahaAuto').value = cfg.bidangUsaha || 'Pertambangan Batubara';
+
+  const now = new Date();
+  document.getElementById('neracaBulanSelect').value = now.getMonth() + 1;
+  document.getElementById('neracaTahunInput').value = now.getFullYear();
+
+  updateGeneratedNomorNeraca();
+  openModal('modalCreateNeraca');
+}
+
+function updateGeneratedNomorNeraca() {
+  const m = document.getElementById('neracaBulanSelect').value;
+  const y = document.getElementById('neracaTahunInput').value || '2026';
+  const autoNo = generateNomorNeraca(m, y);
+  document.getElementById('neracaNomorDocAuto').value = autoNo;
+}
+
+function handleFormCreateNeraca(e) {
+  e.preventDefault();
+  const cfg = JSON.parse(localStorage.getItem('db_settings') || '{}');
+  const mIndex = parseInt(document.getElementById('neracaBulanSelect').value);
+  const tahun = document.getElementById('neracaTahunInput').value;
+  const nomorDoc = document.getElementById('neracaNomorDocAuto').value;
+  
+  const radioDoc = document.querySelector('input[name="neracaDocKontrol"]:checked');
+  const docKontrol = radioDoc ? radioDoc.value : 'Melampirkan Manifes Festronik';
+
+  const periodeStr = `${BULAN_NAMA[mIndex - 1]} ${tahun}`;
 
   const masuk = JSON.parse(localStorage.getItem('db_limbah_masuk') || '[]');
   const keluar = JSON.parse(localStorage.getItem('db_limbah_keluar') || '[]');
@@ -1318,7 +1736,13 @@ function generateDraftNeracaPrompt() {
 
   const newNeraca = {
     id: 'NERACA-' + new Date().toISOString().replace(/[-:T]/g, '').slice(0, 11),
-    periode: periode,
+    nomorDokumen: nomorDoc,
+    namaPerusahaan: cfg.namaPerusahaan || 'PT. Etam Manunggal Jaya',
+    bidangUsaha: cfg.bidangUsaha || 'Pertambangan Batubara',
+    periode: periodeStr,
+    bulan: mIndex,
+    tahun: tahun,
+    dokumenKontrol: docKontrol,
     dataA: dataATon,
     dataB: {
       disimpan: disimpanTon,
@@ -1343,12 +1767,448 @@ function generateDraftNeracaPrompt() {
   list.unshift(newNeraca);
   localStorage.setItem('db_neraca', JSON.stringify(list));
 
-  addAuditLog(STATE.currentUser ? STATE.currentUser.nama : 'Operator', 'GENERATE_NERACA', `Membuat draft Neraca Limbah B3 untuk periode ${periode}`);
-  showToast('Draft Neraca baru berhasil disusun dari data logbook.', 'success');
+  addAuditLog(STATE.currentUser ? STATE.currentUser.nama : 'Operator', 'GENERATE_NERACA', `Membuat Neraca ${nomorDoc} (${periodeStr})`);
+  showToast(`Neraca baru berhasil dibuat dengan nomor: ${nomorDoc}`, 'success');
+  closeModal('modalCreateNeraca');
   renderNeraca();
 }
 
-// --- E-SIGNATURE CANVAS ---
+function renderNeraca(filteredData = null) {
+  const container = document.getElementById('neracaListContainer');
+  const rawList = JSON.parse(localStorage.getItem('db_neraca') || '[]');
+  const neracaList = filteredData || rawList;
+  container.innerHTML = '';
+
+  if (neracaList.length === 0) {
+    container.innerHTML = `
+      <div class="data-card text-center py-12 text-slate-400">
+        <i data-lucide="scale" class="w-12 h-12 mx-auto text-slate-600 mb-3"></i>
+        <p class="font-bold text-white">Tidak Ada Neraca yang Cocok dengan Filter</p>
+      </div>
+    `;
+    return;
+  }
+
+  neracaList.forEach(n => {
+    const card = document.createElement('div');
+    card.className = 'data-card space-y-6';
+    card.innerHTML = `
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-vault-border gap-2">
+        <div>
+          <span class="text-[10px] font-mono font-bold text-vault-lime uppercase tracking-widest">NERACA LIMBAH B3 RESMI (LAMPIRAN IX)</span>
+          <h3 class="text-lg font-bold text-white">${n.periode}</h3>
+          <p class="text-xs text-slate-300 font-mono">No: <span class="text-vault-lime font-bold">${n.nomorDokumen || n.id}</span> &bull; Kontrol: <span class="text-sky-400 font-sans">${n.dokumenKontrol || 'Melampirkan Manifes'}</span></p>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="badge-status ${n.status === 'Final' ? 'badge-green' : 'badge-yellow'} font-bold">
+            ${n.status}
+          </span>
+          <button onclick="printOfficialNeracaPortrait('${n.id}')" class="btn-primary-pill !w-auto !py-1.5 !px-3 text-xs bg-slate-800">
+            <i data-lucide="printer" class="w-3.5 h-3.5"></i> Cetak Neraca (Portrait)
+          </button>
+        </div>
+      </div>
+
+      <div class="overflow-x-auto rounded-xl border border-vault-border">
+        <table class="custom-table text-xs">
+          <thead>
+            <tr class="bg-slate-800">
+              <th>Komponen</th>
+              <th>Uraian</th>
+              <th class="text-right">Jumlah (Ton)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="font-bold text-vault-lime font-mono">A. TOTAL DIHASILKAN</td>
+              <td>Akumulasi limbah B3 masuk ke TPS 01</td>
+              <td class="font-mono font-bold text-right text-white">${n.dataA} Ton</td>
+            </tr>
+            <tr>
+              <td class="font-bold text-sky-400 font-mono">B. PERLAKUAN</td>
+              <td>Diserahkan (${n.dataB.diserahkanPihakKetiga} Ton) & Disimpan (${n.dataB.disimpan} Ton)</td>
+              <td class="font-mono font-bold text-right text-white">${(parseFloat(n.dataB.diserahkanPihakKetiga) + parseFloat(n.dataB.disimpan)).toFixed(3)} Ton</td>
+            </tr>
+            <tr class="bg-slate-900 font-bold">
+              <td colspan="2" class="text-white">KINERJA PENGELOLAAN: [ (A - (C+D)) / A ] &times; 100%</td>
+              <td class="text-right text-vault-lime font-mono text-sm">${n.kinerja}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div>
+        <h4 class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">
+          Verifikasi & Pengesahan Digital Berjenjang (3 Tingkat)
+        </h4>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <!-- Tier 1: Operator -->
+          <div class="p-4 rounded-2xl bg-slate-900/80 border ${n.ttdOperator ? 'border-emerald-500/40' : 'border-slate-800'} text-center space-y-2">
+            <span class="text-[10px] uppercase font-bold text-slate-400">1. Disusun Oleh</span>
+            <p class="text-xs font-bold text-white">Operator TPS LB3</p>
+            <div class="h-20 flex items-center justify-center border border-dashed border-slate-800 rounded-xl bg-slate-950/60 p-1">
+              ${n.ttdOperator ? `<img src="${n.ttdOperator}" class="max-h-16 mx-auto">` : `<span class="text-[11px] text-slate-600 italic">Belum diparaf</span>`}
+            </div>
+            ${!n.ttdOperator ? `
+              <button onclick="openSignatureModal('${n.id}', 'Operator')" class="btn-primary-pill !w-full !py-1.5 text-xs">
+                Paraf Operator
+              </button>
+            ` : `<span class="text-[11px] text-emerald-400 font-mono font-bold flex items-center justify-center gap-1"><i data-lucide="check" class="w-3.5 h-3.5"></i> Terverifikasi</span>`}
+          </div>
+
+          <!-- Tier 2: Penanggung Jawab -->
+          <div class="p-4 rounded-2xl bg-slate-900/80 border ${n.ttdPJ ? 'border-emerald-500/40' : 'border-slate-800'} text-center space-y-2">
+            <span class="text-[10px] uppercase font-bold text-slate-400">2. Diperiksa Oleh</span>
+            <p class="text-xs font-bold text-white">Penanggung Jawab TPS</p>
+            <div class="h-20 flex items-center justify-center border border-dashed border-slate-800 rounded-xl bg-slate-950/60 p-1">
+              ${n.ttdPJ ? `<img src="${n.ttdPJ}" class="max-h-16 mx-auto">` : `<span class="text-[11px] text-slate-600 italic">Menunggu Operator</span>`}
+            </div>
+            ${!n.ttdPJ && n.ttdOperator ? `
+              <button onclick="openSignatureModal('${n.id}', 'Penanggung Jawab')" class="btn-lime-pill !w-full !py-1.5 text-xs justify-center">
+                Tanda Tangan PJ
+              </button>
+            ` : n.ttdPJ ? `<span class="text-[11px] text-emerald-400 font-mono font-bold flex items-center justify-center gap-1"><i data-lucide="check" class="w-3.5 h-3.5"></i> Disetujui PJ</span>` : `<span class="text-[11px] text-slate-500">Antrean Level 2</span>`}
+          </div>
+
+          <!-- Tier 3: KTT -->
+          <div class="p-4 rounded-2xl bg-slate-900/80 border ${n.ttdKTT ? 'border-emerald-500/40' : 'border-slate-800'} text-center space-y-2">
+            <span class="text-[10px] uppercase font-bold text-slate-400">3. Disahkan Oleh</span>
+            <p class="text-xs font-bold text-white">Kepala Teknik Tambang (KTT)</p>
+            <div class="h-20 flex items-center justify-center border border-dashed border-slate-800 rounded-xl bg-slate-950/60 p-1">
+              ${n.ttdKTT ? `<img src="${n.ttdKTT}" class="max-h-16 mx-auto">` : `<span class="text-[11px] text-slate-600 italic">Menunggu PJ</span>`}
+            </div>
+            ${!n.ttdKTT && n.ttdPJ ? `
+              <button onclick="openSignatureModal('${n.id}', 'Manajemen / KTT')" class="btn-primary-pill !w-full !py-1.5 text-xs bg-purple-600 hover:bg-purple-500">
+                Sahkan (KTT)
+              </button>
+            ` : n.ttdKTT ? `<span class="text-[11px] text-purple-400 font-mono font-bold flex items-center justify-center gap-1"><i data-lucide="award" class="w-3.5 h-3.5"></i> Disahkan KTT (Final)</span>` : `<span class="text-[11px] text-slate-500">Antrean Level 3</span>`}
+          </div>
+        </div>
+      </div>
+    `;
+    container.appendChild(card);
+  });
+}
+
+function applyFilterNeraca() {
+  const status = document.getElementById('filterNeracaStatus').value;
+  let list = JSON.parse(localStorage.getItem('db_neraca') || '[]');
+  if (status) list = list.filter(n => n.status.includes(status));
+  renderNeraca(list);
+}
+
+function resetFilterNeraca() {
+  document.getElementById('filterNeracaStatus').value = '';
+  renderNeraca();
+}
+
+function refreshNeraca() {
+  resetFilterNeraca();
+  showToast('Neraca Limbah disegarkan.', 'info');
+}
+
+// --- CETAK NERACA PORTRAIT PERSIS LAMPIRAN 2 (KOP ALIGN LEFT - Revisi #3 & #4) ---
+function printOfficialNeracaPortrait(neracaId) {
+  const cfg = JSON.parse(localStorage.getItem('db_settings') || '{}');
+  const neracaList = JSON.parse(localStorage.getItem('db_neraca') || '[]');
+  const n = neracaList.find(item => item.id === neracaId) || neracaList[0];
+  if (!n) return;
+
+  const masuk = JSON.parse(localStorage.getItem('db_limbah_masuk') || '[]');
+
+  // KOP Align Left Text
+  document.getElementById('kopNeracaNamaPerusahaan').textContent = (cfg.namaPerusahaan || 'PT. ETAM MANUNGGAL JAYA').toUpperCase();
+  document.getElementById('kopNeracaAlamat').textContent = cfg.alamatKantor || 'Jalan S. Parman No. 6, Kota Samarinda, Kalimantan Timur';
+  document.getElementById('kopNeracaKontak').textContent = `Telp: ${cfg.telpPerusahaan || '-'} • Email: ${cfg.emailPerusahaan || '-'}`;
+  if (cfg.logoBase64) {
+    document.getElementById('kopNeracaLogo').src = cfg.logoBase64;
+    document.getElementById('kopNeracaLogo').style.display = 'block';
+  } else {
+    document.getElementById('kopNeracaLogo').style.display = 'none';
+  }
+
+  // Metadata Lampiran 2 Termasuk Nomor Neraca & Dokumen Kontrol
+  document.getElementById('printNeracaPerusahaan').textContent = n.namaPerusahaan || cfg.namaPerusahaan;
+  document.getElementById('printNeracaBidangUsaha').textContent = n.bidangUsaha || cfg.bidangUsaha;
+  document.getElementById('printNeracaNomorDoc').textContent = n.nomorDokumen || n.id;
+  document.getElementById('printNeracaPeriode').textContent = n.periode;
+  document.getElementById('printNeracaDocKontrol').textContent = n.dokumenKontrol || 'Melampirkan Manifes Festronik';
+
+  // Bagian I: Jenis Awal Limbah Table
+  const tbodyA = document.getElementById('printNeracaTableA');
+  tbodyA.innerHTML = '';
+
+  const rintekMap = {};
+  masuk.forEach(m => {
+    rintekMap[m.namaLimbah] = (rintekMap[m.namaLimbah] || 0) + (parseFloat(m.jumlah) || 0);
+  });
+
+  let counter = 1;
+  for (let [nama, kg] of Object.entries(rintekMap)) {
+    const ton = (kg / 1000).toFixed(3);
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td style="text-align: center;">${counter++}</td>
+      <td>${nama}</td>
+      <td style="text-align: right; font-weight: bold;">${ton}</td>
+      <td colspan="3">Penyimpanan di TPS LB3 01</td>
+    `;
+    tbodyA.appendChild(tr);
+  }
+  document.getElementById('printNeracaTotalA').textContent = `A (+) ${n.dataA}`;
+
+  // Bagian II: Perlakuan
+  const tbodyB = document.getElementById('printNeracaTableB');
+  tbodyB.innerHTML = '';
+
+  const perlakuanList = [
+    { no: '1', nama: 'DISIMPAN', jumlah: n.dataB.disimpan, jenis: 'Limbah B3 di TPS 01', izin: 'ADA' },
+    { no: '2', nama: 'DIMANFAATKAN', jumlah: n.dataB.dimanfaatkan, jenis: '-', izin: '-' },
+    { no: '3', nama: 'DIOLAH', jumlah: n.dataB.diolah, jenis: '-', izin: '-' },
+    { no: '4', nama: 'DITIMBUN', jumlah: n.dataB.ditimbun, jenis: '-', izin: '-' },
+    { no: '5', nama: 'DISERAHKAN KE PIHAK KETIGA', jumlah: n.dataB.diserahkanPihakKetiga, jenis: 'PT. Berkat Jaya Sukses', izin: 'ADA' },
+    { no: '6', nama: 'EKSPOR', jumlah: n.dataB.ekspor, jenis: '-', izin: '-' },
+    { no: '7', nama: 'PERLAKUAN LAINNYA', jumlah: n.dataB.lainnya, jenis: '-', izin: '-' }
+  ];
+
+  let totalB = 0;
+  perlakuanList.forEach(p => {
+    totalB += parseFloat(p.jumlah);
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td style="text-align: center;">${p.no}</td>
+      <td><strong>${p.nama}</strong></td>
+      <td style="text-align: right; font-weight: bold;">${p.jumlah}</td>
+      <td>${p.jenis}</td>
+      <td style="text-align: center;">${p.izin === 'ADA' ? '✓' : '-'}</td>
+      <td style="text-align: center;">${p.izin === 'TIDAK ADA' ? '✓' : '-'}</td>
+    `;
+    tbodyB.appendChild(tr);
+  });
+  document.getElementById('printNeracaTotalB').textContent = `B (-) ${totalB.toFixed(3)}`;
+
+  document.getElementById('printNeracaResiduC').textContent = n.dataC || '0.000';
+  document.getElementById('printNeracaBelumD').textContent = n.dataD || '0.000';
+  document.getElementById('printNeracaTotalSisaCD').textContent = (parseFloat(n.dataC || 0) + parseFloat(n.dataD || 0)).toFixed(3);
+  document.getElementById('printNeracaKinerjaRumus').textContent = n.kinerja;
+
+  const boxOp = document.getElementById('printNeracaTtdOp');
+  boxOp.innerHTML = n.ttdOperator ? `<img src="${n.ttdOperator}" style="max-height: 45px;">` : `<span style="font-size: 8pt; color: #888;">(Belum Paraf)</span>`;
+
+  const boxPJ = document.getElementById('printNeracaTtdPJ');
+  boxPJ.innerHTML = n.ttdPJ ? `<img src="${n.ttdPJ}" style="max-height: 45px;">` : `<span style="font-size: 8pt; color: #888;">(Belum Disetujui)</span>`;
+
+  const boxKTT = document.getElementById('printNeracaTtdKTT');
+  boxKTT.innerHTML = n.ttdKTT ? `<img src="${n.ttdKTT}" style="max-height: 45px;">` : `<span style="font-size: 8pt; color: #888;">(Belum Disahkan)</span>`;
+
+  document.body.className = 'print-portrait';
+  const printEl = document.getElementById('printNeracaPortraitContainer');
+  printEl.classList.add('active-print');
+
+  setTimeout(() => {
+    window.print();
+    printEl.classList.remove('active-print');
+    document.body.className = '';
+  }, 200);
+}
+
+// --- 4.8 STUDIO TANDA TANGAN ONLINE (Sesuai Permintaan #1) ---
+let studioCanvas, studioCtx, isStudioDrawing = false;
+
+function renderStudioTtd() {
+  if (!STATE.currentUser) return;
+  document.getElementById('ttdUserRoleBadge').textContent = STATE.currentUser.role;
+  document.getElementById('ttdOwnerName').textContent = STATE.currentUser.nama;
+
+  // Render spesimen tersimpan jika ada
+  const savedTtd = getSavedUserSignature();
+  const prevContainer = document.getElementById('savedSignaturePreview');
+  if (savedTtd) {
+    prevContainer.innerHTML = `<img src="${savedTtd}" class="max-h-32 object-contain mx-auto">`;
+  } else {
+    prevContainer.innerHTML = `<span class="text-xs text-slate-500 italic">Belum ada spesimen tanda tangan tersimpan. Goreskan di kanvas kiri lalu klik Simpan.</span>`;
+  }
+
+  // Inisialisasi Kanvas Studio
+  setTimeout(() => {
+    initStudioCanvas();
+  }, 100);
+
+  // Render Antrean Dokumen Menunggu Tanda Tangan User
+  renderPendingSignatureQueue();
+}
+
+function initStudioCanvas() {
+  studioCanvas = document.getElementById('studioSignatureCanvas');
+  if (!studioCanvas) return;
+  studioCtx = studioCanvas.getContext('2d');
+
+  studioCanvas.width = studioCanvas.parentElement.clientWidth;
+  studioCanvas.height = 180;
+
+  studioCtx.lineWidth = 2.5;
+  studioCtx.lineCap = 'round';
+  studioCtx.strokeStyle = '#0f172a';
+
+  clearStudioCanvas();
+
+  studioCanvas.onmousedown = (e) => startStudioDrawing(e);
+  studioCanvas.onmousemove = (e) => drawStudio(e);
+  studioCanvas.onmouseup = () => stopStudioDrawing();
+
+  studioCanvas.ontouchstart = (e) => {
+    e.preventDefault();
+    const touch = e.touches[0];
+    startStudioDrawing({ clientX: touch.clientX, clientY: touch.clientY });
+  };
+  studioCanvas.ontouchmove = (e) => {
+    e.preventDefault();
+    const touch = e.touches[0];
+    drawStudio({ clientX: touch.clientX, clientY: touch.clientY });
+  };
+  studioCanvas.ontouchend = () => stopStudioDrawing();
+}
+
+function startStudioDrawing(e) {
+  isStudioDrawing = true;
+  studioCtx.beginPath();
+  const rect = studioCanvas.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+  studioCtx.moveTo(x, y);
+}
+
+function drawStudio(e) {
+  if (!isStudioDrawing) return;
+  const rect = studioCanvas.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+  studioCtx.lineTo(x, y);
+  studioCtx.stroke();
+}
+
+function stopStudioDrawing() {
+  isStudioDrawing = false;
+}
+
+function clearStudioCanvas() {
+  if (!studioCtx || !studioCanvas) return;
+  studioCtx.fillStyle = '#ffffff';
+  studioCtx.fillRect(0, 0, studioCanvas.width, studioCanvas.height);
+}
+
+function setStudioPenColor(color) {
+  if (!studioCtx) return;
+  studioCtx.strokeStyle = color;
+  showToast(`Warna tinta diubah (${color === '#1d4ed8' ? 'Biru' : 'Hitam'}).`, 'info');
+}
+
+function handleUploadStudioTtd(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const img = new Image();
+    img.onload = () => {
+      clearStudioCanvas();
+      const hRatio = studioCanvas.width / img.width;
+      const vRatio = studioCanvas.height / img.height;
+      const ratio = Math.min(hRatio, vRatio, 1);
+      const centerShiftX = (studioCanvas.width - img.width * ratio) / 2;
+      const centerShiftY = (studioCanvas.height - img.height * ratio) / 2;
+      studioCtx.drawImage(img, 0, 0, img.width, img.height,
+                          centerShiftX, centerShiftY, img.width * ratio, img.height * ratio);
+      showToast('Spesimen TTD berhasil dimuat ke kanvas. Klik "Simpan Sebagai TTD Saya" untuk menyimpan.', 'info');
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function saveUserDefaultSignature() {
+  if (!studioCanvas || !STATE.currentUser) return;
+  const sigDataUrl = studioCanvas.toDataURL('image/png');
+
+  // Simpan ke local storage user profile
+  localStorage.setItem('saved_ttd_' + STATE.currentUser.id, sigDataUrl);
+  showToast('Spesimen tanda tangan digital Anda berhasil disimpan!', 'success');
+  renderStudioTtd();
+}
+
+function getSavedUserSignature() {
+  if (!STATE.currentUser) return null;
+  return localStorage.getItem('saved_ttd_' + STATE.currentUser.id) || null;
+}
+
+function renderPendingSignatureQueue() {
+  const table = document.getElementById('tablePendingSignatureBody');
+  const neracaList = JSON.parse(localStorage.getItem('db_neraca') || '[]');
+  const role = STATE.currentUser ? STATE.currentUser.role : '';
+  table.innerHTML = '';
+
+  // Filter neraca yang relevan dengan role saat ini
+  let pendingList = [];
+  if (role === 'Operator') {
+    pendingList = neracaList.filter(n => !n.ttdOperator);
+  } else if (role === 'Penanggung Jawab') {
+    pendingList = neracaList.filter(n => n.ttdOperator && !n.ttdPJ);
+  } else if (role === 'Manajemen / KTT' || role === 'KTT') {
+    pendingList = neracaList.filter(n => n.ttdPJ && !n.ttdKTT);
+  }
+
+  if (pendingList.length === 0) {
+    table.innerHTML = `<tr><td colspan="5" class="text-center py-5 text-slate-500">Tidak ada dokumen yang sedang menunggu tanda tangan Anda sebagai ${role}.</td></tr>`;
+    return;
+  }
+
+  pendingList.forEach(n => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="font-mono text-vault-lime font-bold">${n.nomorDokumen || n.id}</td>
+      <td class="font-semibold text-white">${n.periode}</td>
+      <td class="font-mono">${n.dataA} Ton</td>
+      <td><span class="badge-status badge-yellow">${n.status}</span></td>
+      <td>
+        <button onclick="quickSignFromStudio('${n.id}')" class="btn-lime-pill !py-1 !px-3 text-xs">
+          <i data-lucide="pen-tool" class="w-3.5 h-3.5"></i> Sahkan Sekarang
+        </button>
+      </td>
+    `;
+    table.appendChild(tr);
+  });
+}
+
+function quickSignFromStudio(neracaId) {
+  const savedTtd = getSavedUserSignature();
+  const role = STATE.currentUser ? STATE.currentUser.role : 'Operator';
+
+  if (!savedTtd) {
+    showToast('Silakan goreskan tanda tangan Anda di kanvas terlebih dahulu lalu klik Simpan TTD!', 'warning');
+    return;
+  }
+
+  const neracaList = JSON.parse(localStorage.getItem('db_neraca') || '[]');
+  const item = neracaList.find(n => n.id === neracaId);
+  if (!item) return;
+
+  if (role === 'Operator') {
+    item.ttdOperator = savedTtd;
+    item.status = 'Menunggu Approval Penanggung Jawab';
+  } else if (role === 'Penanggung Jawab') {
+    item.ttdPJ = savedTtd;
+    item.status = 'Menunggu Pengesahan KTT';
+  } else if (role === 'Manajemen / KTT' || role === 'KTT') {
+    item.ttdKTT = savedTtd;
+    item.status = 'Final';
+  }
+
+  localStorage.setItem('db_neraca', JSON.stringify(neracaList));
+  addAuditLog(STATE.currentUser.nama, 'SIGN_NERACA', `Mengesahkan Neraca ${item.nomorDokumen || neracaId} sebagai ${role}`);
+  showToast(`Dokumen Neraca ${item.nomorDokumen || neracaId} berhasil disahkan!`, 'success');
+  renderStudioTtd();
+}
+
+// --- POPUP SIGNATURE CANVAS (MODAL) ---
 let canvas, ctx, isDrawing = false;
 
 function openSignatureModal(neracaId, role) {
@@ -1366,7 +2226,6 @@ function initSignatureCanvas() {
   if (!canvas) return;
   ctx = canvas.getContext('2d');
 
-  // Set resolusi canvas
   canvas.width = canvas.parentElement.clientWidth;
   canvas.height = 180;
 
@@ -1376,24 +2235,21 @@ function initSignatureCanvas() {
 
   clearSignatureCanvas();
 
-  // Mouse & Touch events
-  canvas.onmousedown = startDrawing;
-  canvas.onmousemove = draw;
-  canvas.onmouseup = stopDrawing;
+  canvas.onmousedown = (e) => startDrawing(e);
+  canvas.onmousemove = (e) => draw(e);
+  canvas.onmouseup = () => stopDrawing();
 
   canvas.ontouchstart = (e) => {
     e.preventDefault();
     const touch = e.touches[0];
-    const rect = canvas.getBoundingClientRect();
-    startDrawing({ clientX: touch.clientX, clientY: touch.clientY, rect });
+    startDrawing({ clientX: touch.clientX, clientY: touch.clientY });
   };
   canvas.ontouchmove = (e) => {
     e.preventDefault();
     const touch = e.touches[0];
-    const rect = canvas.getBoundingClientRect();
-    draw({ clientX: touch.clientX, clientY: touch.clientY, rect });
+    draw({ clientX: touch.clientX, clientY: touch.clientY });
   };
-  canvas.ontouchend = stopDrawing;
+  canvas.ontouchend = () => stopDrawing();
 }
 
 function startDrawing(e) {
@@ -1414,9 +2270,7 @@ function draw(e) {
   ctx.stroke();
 }
 
-function stopDrawing() {
-  isDrawing = false;
-}
+function stopDrawing() { isDrawing = false; }
 
 function clearSignatureCanvas() {
   if (!ctx || !canvas) return;
@@ -1456,7 +2310,7 @@ function submitDigitalSignature() {
   renderNeraca();
 }
 
-// --- 4.8 MASTER RINTEK ---
+// --- 4.9 MASTER RINTEK (CRUD) ---
 function renderMasterRintek() {
   const table = document.getElementById('tableMasterRintekBody');
   const data = JSON.parse(localStorage.getItem('db_rintek') || '[]');
@@ -1476,6 +2330,12 @@ function renderMasterRintek() {
           ${r.batasSimpanHari} Hari
         </span>
       </td>
+      <td>
+        <div class="flex items-center gap-1.5">
+          <button onclick="openModalEditRintek('${r.kodeLimbah}')" class="btn-action-sm btn-edit" title="Edit"><i data-lucide="edit-2" class="w-3.5 h-3.5"></i> Edit</button>
+          <button onclick="deleteRintek('${r.kodeLimbah}')" class="btn-action-sm btn-delete" title="Hapus"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Hapus</button>
+        </div>
+      </td>
     `;
     table.appendChild(tr);
   });
@@ -1486,18 +2346,22 @@ function openModalTambahRintek() {
   if (!kode) return;
   const nama = prompt('Nama Limbah B3:');
   if (!nama) return;
+  const sumber = prompt('Sumber Limbah B3:', 'Sumber spesifik operasional tambang');
   const kar = prompt('Karakteristik (Beracun, Mudah Terbakar, dsb):', 'Beracun');
+  const wadah = prompt('Jenis Wadah:', 'Drum');
+  const kap = prompt('Kapasitas Wadah:', '200');
+  const satuan = prompt('Satuan (Kg/Liter):', 'Kg');
   const hari = prompt('Batas Waktu Simpan (90/180/365 hari):', '90');
 
   const rintek = JSON.parse(localStorage.getItem('db_rintek') || '[]');
   rintek.push({
     kodeLimbah: kode,
     namaLimbah: nama,
-    sumber: 'Sumber spesifik tambang',
+    sumber: sumber || 'Tambang',
     karakteristik: kar || 'Beracun',
-    jenisWadah: 'Drum',
-    kapasitasWadah: 200,
-    satuan: 'Kg',
+    jenisWadah: wadah || 'Drum',
+    kapasitasWadah: parseFloat(kap) || 200,
+    satuan: satuan || 'Kg',
     batasSimpanHari: parseInt(hari) || 90
   });
 
@@ -1507,7 +2371,70 @@ function openModalTambahRintek() {
   renderMasterRintek();
 }
 
-// --- 4.9 MASTER PIHAK KETIGA ---
+function openModalEditRintek(kode) {
+  const rintek = JSON.parse(localStorage.getItem('db_rintek') || '[]');
+  const item = rintek.find(r => r.kodeLimbah === kode);
+  if (!item) return;
+
+  document.getElementById('editRintekOriginalKode').value = item.kodeLimbah;
+  document.getElementById('editRintekKode').value = item.kodeLimbah;
+  document.getElementById('editRintekNama').value = item.namaLimbah;
+  document.getElementById('editRintekSumber').value = item.sumber;
+  document.getElementById('editRintekKarakteristik').value = item.karakteristik;
+  document.getElementById('editRintekWadah').value = item.jenisWadah;
+  document.getElementById('editRintekKapasitas').value = item.kapasitasWadah;
+  document.getElementById('editRintekSatuan').value = item.satuan;
+  document.getElementById('editRintekBatasHari').value = item.batasSimpanHari;
+
+  openModal('modalEditRintek');
+}
+
+function handleSaveEditRintek(e) {
+  e.preventDefault();
+  const origKode = document.getElementById('editRintekOriginalKode').value;
+  const kode = document.getElementById('editRintekKode').value.trim();
+  const nama = document.getElementById('editRintekNama').value.trim();
+  const sumber = document.getElementById('editRintekSumber').value.trim();
+  const kar = document.getElementById('editRintekKarakteristik').value.trim();
+  const wadah = document.getElementById('editRintekWadah').value.trim();
+  const kap = parseFloat(document.getElementById('editRintekKapasitas').value) || 200;
+  const sat = document.getElementById('editRintekSatuan').value;
+  const hari = parseInt(document.getElementById('editRintekBatasHari').value) || 90;
+
+  const rintek = JSON.parse(localStorage.getItem('db_rintek') || '[]');
+  const idx = rintek.findIndex(r => r.kodeLimbah === origKode);
+
+  if (idx !== -1) {
+    rintek[idx] = {
+      kodeLimbah: kode,
+      namaLimbah: nama,
+      sumber: sumber,
+      karakteristik: kar,
+      jenisWadah: wadah,
+      kapasitasWadah: kap,
+      satuan: sat,
+      batasSimpanHari: hari
+    };
+    localStorage.setItem('db_rintek', JSON.stringify(rintek));
+    addAuditLog(STATE.currentUser ? STATE.currentUser.nama : 'Admin', 'EDIT_RINTEK', `Mengubah rintek ${nama} (${kode})`);
+    showToast('Data Rintek berhasil diperbarui.', 'success');
+    closeModal('modalEditRintek');
+    renderMasterRintek();
+  }
+}
+
+function deleteRintek(kode) {
+  if (confirm(`Apakah Anda yakin ingin menghapus limbah Rintek ${kode}?`)) {
+    let rintek = JSON.parse(localStorage.getItem('db_rintek') || '[]');
+    rintek = rintek.filter(r => r.kodeLimbah !== kode);
+    localStorage.setItem('db_rintek', JSON.stringify(rintek));
+    addAuditLog(STATE.currentUser ? STATE.currentUser.nama : 'Admin', 'DELETE_RINTEK', `Menghapus limbah rintek ${kode}`);
+    showToast('Data Rintek berhasil dihapus.', 'info');
+    renderMasterRintek();
+  }
+}
+
+// --- 4.10 MASTER PIHAK KETIGA (CRUD) ---
 function renderMasterPihakKetiga() {
   const table = document.getElementById('tablePihakKetigaBody');
   const data = JSON.parse(localStorage.getItem('db_pihak_ketiga') || '[]');
@@ -1521,6 +2448,12 @@ function renderMasterPihakKetiga() {
       <td class="font-mono text-xs text-vault-lime">${pk.noIzin}</td>
       <td class="text-xs text-slate-300">${pk.alamat}</td>
       <td class="text-xs text-slate-400">${pk.kontak}</td>
+      <td>
+        <div class="flex items-center gap-1.5">
+          <button onclick="openModalEditPK('${pk.id}')" class="btn-action-sm btn-edit"><i data-lucide="edit-2" class="w-3.5 h-3.5"></i> Edit</button>
+          <button onclick="deletePihakKetiga('${pk.id}')" class="btn-action-sm btn-delete"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Hapus</button>
+        </div>
+      </td>
     `;
     table.appendChild(tr);
   });
@@ -1530,6 +2463,7 @@ function openModalTambahPihakKetiga() {
   const nama = prompt('Nama Perusahaan Pihak Ketiga:');
   if (!nama) return;
   const izin = prompt('Nomor Izin Operasional KLHK:');
+  const alamat = prompt('Alamat Operasional:', 'Balikpapan / Samarinda');
   const kontak = prompt('Kontak Person / Telepon:');
 
   const pkList = JSON.parse(localStorage.getItem('db_pihak_ketiga') || '[]');
@@ -1539,7 +2473,7 @@ function openModalTambahPihakKetiga() {
     id: newId,
     namaPerusahaan: nama,
     noIzin: izin || 'Dalam Proses',
-    alamat: 'Samarinda / Balikpapan',
+    alamat: alamat || 'Kalimantan Timur',
     kontak: kontak || '-'
   });
 
@@ -1549,7 +2483,53 @@ function openModalTambahPihakKetiga() {
   renderMasterPihakKetiga();
 }
 
-// --- 4.10 MASTER USERS ---
+function openModalEditPK(id) {
+  const pkList = JSON.parse(localStorage.getItem('db_pihak_ketiga') || '[]');
+  const item = pkList.find(p => p.id === id);
+  if (!item) return;
+
+  document.getElementById('editPKId').value = item.id;
+  document.getElementById('editPKNama').value = item.namaPerusahaan;
+  document.getElementById('editPKIzin').value = item.noIzin;
+  document.getElementById('editPKAlamat').value = item.alamat;
+  document.getElementById('editPKKontak').value = item.kontak;
+
+  openModal('modalEditPK');
+}
+
+function handleSaveEditPK(e) {
+  e.preventDefault();
+  const id = document.getElementById('editPKId').value;
+  const nama = document.getElementById('editPKNama').value.trim();
+  const izin = document.getElementById('editPKIzin').value.trim();
+  const alamat = document.getElementById('editPKAlamat').value.trim();
+  const kontak = document.getElementById('editPKKontak').value.trim();
+
+  const pkList = JSON.parse(localStorage.getItem('db_pihak_ketiga') || '[]');
+  const idx = pkList.findIndex(p => p.id === id);
+
+  if (idx !== -1) {
+    pkList[idx] = { id, namaPerusahaan: nama, noIzin: izin, alamat, kontak };
+    localStorage.setItem('db_pihak_ketiga', JSON.stringify(pkList));
+    addAuditLog(STATE.currentUser ? STATE.currentUser.nama : 'Admin', 'EDIT_PIHAK_KETIGA', `Mengubah pihak ketiga ${nama}`);
+    showToast('Data pihak ketiga berhasil diperbarui.', 'success');
+    closeModal('modalEditPK');
+    renderMasterPihakKetiga();
+  }
+}
+
+function deletePihakKetiga(id) {
+  if (confirm(`Apakah Anda yakin ingin menghapus pihak ketiga ${id}?`)) {
+    let pkList = JSON.parse(localStorage.getItem('db_pihak_ketiga') || '[]');
+    pkList = pkList.filter(p => p.id !== id);
+    localStorage.setItem('db_pihak_ketiga', JSON.stringify(pkList));
+    addAuditLog(STATE.currentUser ? STATE.currentUser.nama : 'Admin', 'DELETE_PIHAK_KETIGA', `Menghapus pihak ketiga ${id}`);
+    showToast('Pihak ketiga berhasil dihapus.', 'info');
+    renderMasterPihakKetiga();
+  }
+}
+
+// --- 4.11 MASTER USERS (CRUD) ---
 function renderMasterUsers() {
   const table = document.getElementById('tableUsersBody');
   const data = JSON.parse(localStorage.getItem('db_users') || '[]');
@@ -1561,16 +2541,14 @@ function renderMasterUsers() {
       <td class="font-mono text-sky-400">${u.id}</td>
       <td class="font-bold text-white">${u.nama}</td>
       <td class="font-mono text-xs text-slate-300">${u.username}</td>
+      <td><span class="badge-status badge-blue">${u.role}</span></td>
+      <td><span class="badge-status ${u.status === 'Aktif' ? 'badge-green' : 'badge-red'}">${u.status}</span></td>
       <td>
-        <span class="badge-status badge-blue">${u.role}</span>
-      </td>
-      <td>
-        <span class="badge-status badge-green">${u.status}</span>
-      </td>
-      <td>
-        <button onclick="resetUserPassword('${u.username}')" class="text-xs px-2.5 py-1 rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700">
-          Reset Password
-        </button>
+        <div class="flex items-center gap-1.5">
+          <button onclick="openModalEditUser('${u.id}')" class="btn-action-sm btn-edit"><i data-lucide="edit-2" class="w-3.5 h-3.5"></i> Edit</button>
+          <button onclick="resetUserPassword('${u.username}')" class="btn-action-sm role-quick-btn">Reset Pass</button>
+          <button onclick="deleteUser('${u.id}')" class="btn-action-sm btn-delete"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Hapus</button>
+        </div>
       </td>
     `;
     table.appendChild(tr);
@@ -1594,13 +2572,64 @@ function openModalTambahUser() {
     username: username,
     password: password || 'password123',
     role: role || 'Operator',
-    status: 'Aktif'
+    status: 'Aktif',
+    fotoProfil: ''
   });
 
   localStorage.setItem('db_users', JSON.stringify(users));
   addAuditLog(STATE.currentUser ? STATE.currentUser.nama : 'Admin', 'ADD_USER', `Mendaftarkan pengguna baru: ${username} (${role})`);
   showToast('Pengguna baru berhasil didaftarkan.', 'success');
   renderMasterUsers();
+}
+
+function openModalEditUser(id) {
+  const users = JSON.parse(localStorage.getItem('db_users') || '[]');
+  const item = users.find(u => u.id === id);
+  if (!item) return;
+
+  document.getElementById('editUserId').value = item.id;
+  document.getElementById('editUserNama').value = item.nama;
+  document.getElementById('editUserUsername').value = item.username;
+  document.getElementById('editUserRole').value = item.role;
+  document.getElementById('editUserStatus').value = item.status || 'Aktif';
+
+  openModal('modalEditUser');
+}
+
+function handleSaveEditUser(e) {
+  e.preventDefault();
+  const id = document.getElementById('editUserId').value;
+  const nama = document.getElementById('editUserNama').value.trim();
+  const username = document.getElementById('editUserUsername').value.trim();
+  const role = document.getElementById('editUserRole').value;
+  const status = document.getElementById('editUserStatus').value;
+
+  const users = JSON.parse(localStorage.getItem('db_users') || '[]');
+  const idx = users.findIndex(u => u.id === id);
+
+  if (idx !== -1) {
+    users[idx].nama = nama;
+    users[idx].username = username;
+    users[idx].role = role;
+    users[idx].status = status;
+
+    localStorage.setItem('db_users', JSON.stringify(users));
+    addAuditLog(STATE.currentUser ? STATE.currentUser.nama : 'Admin', 'EDIT_USER', `Mengubah data user ${username}`);
+    showToast('Data pengguna berhasil diperbarui.', 'success');
+    closeModal('modalEditUser');
+    renderMasterUsers();
+  }
+}
+
+function deleteUser(id) {
+  if (confirm(`Apakah Anda yakin ingin menghapus pengguna ${id}?`)) {
+    let users = JSON.parse(localStorage.getItem('db_users') || '[]');
+    users = users.filter(u => u.id !== id);
+    localStorage.setItem('db_users', JSON.stringify(users));
+    addAuditLog(STATE.currentUser ? STATE.currentUser.nama : 'Admin', 'DELETE_USER', `Menghapus pengguna ${id}`);
+    showToast('Pengguna berhasil dihapus.', 'info');
+    renderMasterUsers();
+  }
 }
 
 function resetUserPassword(username) {
@@ -1617,7 +2646,7 @@ function resetUserPassword(username) {
   }
 }
 
-// --- 4.11 SETTINGS & AUDIT LOG ---
+// --- 4.12 SETTINGS, UPLOAD LOGO & BACKGROUND ---
 function renderSettingsAndAudit() {
   document.getElementById('inputGasUrl').value = STATE.gasApiUrl;
   const auditTable = document.getElementById('tableAuditLogsBody');
@@ -1636,6 +2665,62 @@ function renderSettingsAndAudit() {
   });
 }
 
+function handleUploadLogo(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = (event) => {
+    const base64 = event.target.result;
+    const cfg = JSON.parse(localStorage.getItem('db_settings') || '{}');
+    cfg.logoBase64 = base64;
+    localStorage.setItem('db_settings', JSON.stringify(cfg));
+
+    applyCompanySettingsUI();
+    addAuditLog(STATE.currentUser ? STATE.currentUser.nama : 'Admin', 'UPLOAD_LOGO', 'Mengunggah logo resmi perusahaan');
+    showToast('Logo perusahaan berhasil diperbarui dan diterapkan ke seluruh dokumen!', 'success');
+  };
+  reader.readAsDataURL(file);
+}
+
+function handleUploadBgLogin(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = (event) => {
+    const base64 = event.target.result;
+    const cfg = JSON.parse(localStorage.getItem('db_settings') || '{}');
+    cfg.loginBgBase64 = base64;
+    localStorage.setItem('db_settings', JSON.stringify(cfg));
+
+    applyCompanySettingsUI();
+    addAuditLog(STATE.currentUser ? STATE.currentUser.nama : 'Admin', 'UPLOAD_LOGIN_BG', 'Mengubah wallpaper background halaman login');
+    showToast('Foto background halaman login berhasil diperbarui!', 'success');
+  };
+  reader.readAsDataURL(file);
+}
+
+function saveSettingsForm() {
+  const cfg = JSON.parse(localStorage.getItem('db_settings') || '{}');
+
+  cfg.namaPerusahaan = document.getElementById('setPerusahaan').value.trim();
+  cfg.bidangUsaha = document.getElementById('setBidangUsaha').value.trim();
+  cfg.alamatKantor = document.getElementById('setAlamatKantor').value.trim();
+  cfg.telpPerusahaan = document.getElementById('setTelp').value.trim();
+  cfg.emailPerusahaan = document.getElementById('setEmail').value.trim();
+  cfg.lokasiTps = document.getElementById('setLokasi').value.trim();
+  cfg.luasTps = document.getElementById('setLuas').value.trim();
+  cfg.kapasitasMaksTon = document.getElementById('setKapasitas').value.trim();
+  cfg.pjTeknis = document.getElementById('setPJ').value.trim();
+
+  localStorage.setItem('db_settings', JSON.stringify(cfg));
+  applyCompanySettingsUI();
+
+  addAuditLog(STATE.currentUser ? STATE.currentUser.nama : 'Admin', 'UPDATE_SETTINGS', 'Menyimpan konfigurasi identitas perusahaan');
+  showToast('Identitas dan profil perusahaan berhasil disimpan!', 'success');
+}
+
 function saveGasUrlConfig() {
   const url = document.getElementById('inputGasUrl').value.trim();
   STATE.gasApiUrl = url;
@@ -1650,11 +2735,6 @@ function resetToLocalEngine() {
   document.getElementById('inputGasUrl').value = '';
   updateGasStatusBadge();
   showToast('Kembali ke Local Engine.', 'info');
-}
-
-function saveSettingsForm() {
-  showToast('Profil fasilitas TPS LB3 01 berhasil disimpan.', 'success');
-  addAuditLog(STATE.currentUser ? STATE.currentUser.nama : 'Admin', 'UPDATE_SETTINGS', 'Menyimpan profil fasilitas TPS LB3');
 }
 
 // ==========================================================================
@@ -1757,7 +2837,6 @@ function toggleNotificationPopover() {
 
 function setupGlobalShortcuts() {
   window.addEventListener('keydown', (e) => {
-    // Ctrl + K untuk search
     if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
       e.preventDefault();
       const search = document.getElementById('globalSearchInput');
