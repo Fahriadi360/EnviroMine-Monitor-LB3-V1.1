@@ -1,0 +1,1207 @@
+<!DOCTYPE html>
+<html lang="id" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EnviroMine Monitor — Limbah B3 (PT. Etam Manunggal Jaya)</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            vault: {
+              bg: '#0d0f15',
+              surface: '#141721',
+              card: '#1b1f2e',
+              sidebar: '#0f1118',
+              lime: '#d4f933',
+              cyan: '#38bdf8',
+              border: 'rgba(255, 255, 255, 0.08)'
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <!-- Custom CSS -->
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="bg-vault-bg text-slate-100 antialiased selection:bg-vault-lime selection:text-slate-950">
+
+  <!-- ======================================================================
+       1. AUTH VIEW (LOGIN SCREEN - Inspired by Image 1)
+       ====================================================================== -->
+  <div id="authView" class="auth-wrapper">
+    <!-- Atmospheric mountain graphic background -->
+    <div class="auth-backdrop-graphic"></div>
+
+    <div class="auth-card">
+      <!-- Brand & Header -->
+      <div class="flex items-center justify-between mb-8">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-2xl bg-gradient-to-tr from-sky-500 to-vault-lime flex items-center justify-center shadow-lg shadow-sky-500/20">
+            <i data-lucide="shield-alert" class="w-5 h-5 text-slate-950"></i>
+          </div>
+          <div>
+            <h1 class="text-lg font-bold tracking-tight text-white flex items-center gap-1.5">
+              EnviroMine<span class="text-vault-cyan">.</span>
+            </h1>
+            <p class="text-[11px] text-slate-400 font-medium">PT. Etam Manunggal Jaya</p>
+          </div>
+        </div>
+        <span class="text-xs font-semibold px-2.5 py-1 rounded-full bg-slate-800 text-sky-400 border border-slate-700/60">
+          TPS LB3 01
+        </span>
+      </div>
+
+      <!-- Hero Subtitle -->
+      <div class="mb-7">
+        <span class="text-[11px] font-bold tracking-widest text-sky-400 uppercase">DIGITALISASI TPS LB3</span>
+        <h2 class="text-2xl sm:text-3xl font-bold text-white mt-1">Masuk ke Akun<span class="text-vault-cyan">.</span></h2>
+        <p class="text-xs text-slate-400 mt-1.5">Sistem Pencatatan & Neraca Limbah B3 Permen LHK No. 6/2021</p>
+      </div>
+
+      <!-- Login Form -->
+      <form id="loginForm" onsubmit="handleLoginSubmit(event)">
+        <!-- Username Field -->
+        <div class="auth-input-group">
+          <input type="text" id="loginUsername" required class="auth-input" placeholder="Username (misal: operator / pj123)">
+          <i data-lucide="user" class="auth-input-icon w-4 h-4"></i>
+        </div>
+
+        <!-- Password Field -->
+        <div class="auth-input-group">
+          <input type="password" id="loginPassword" required class="auth-input" placeholder="Password">
+          <i data-lucide="lock" class="auth-input-icon w-4 h-4"></i>
+          <button type="button" onclick="togglePasswordVisibility()" class="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300">
+            <i data-lucide="eye" id="eyeIcon" class="w-4 h-4"></i>
+          </button>
+        </div>
+
+        <div class="flex items-center justify-between text-xs text-slate-400 mb-6">
+          <label class="flex items-center gap-2 cursor-pointer select-none">
+            <input type="checkbox" id="rememberMe" checked class="rounded border-slate-700 bg-slate-800 text-sky-500 focus:ring-0">
+            <span>Ingat saya di perangkat ini</span>
+          </label>
+          <a href="javascript:void(0)" onclick="handleForgotPassword()" class="text-sky-400 hover:underline">Lupa Password?</a>
+        </div>
+
+        <!-- Submit Button -->
+        <button type="submit" id="btnLoginSubmit" class="btn-primary-pill">
+          <span>Masuk Sekarang</span>
+          <i data-lucide="arrow-right" class="w-4 h-4"></i>
+        </button>
+      </form>
+
+      <!-- Quick Demo Switcher (4 Roles in PRD) -->
+      <div class="mt-8 pt-6 border-t border-slate-800/80">
+        <p class="text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-3 text-center">
+          Pilih Cepat Role Pengguna (Demo Akses)
+        </p>
+        <div class="grid grid-cols-2 gap-2">
+          <button type="button" onclick="quickFillLogin('operator', 'operator123')" class="role-quick-btn flex items-center justify-between">
+            <span class="font-medium text-slate-200">1. Operator Lapangan</span>
+            <span class="text-[10px] text-emerald-400 font-mono">Input</span>
+          </button>
+          <button type="button" onclick="quickFillLogin('penanggung_jawab', 'pj12345')" class="role-quick-btn flex items-center justify-between">
+            <span class="font-medium text-slate-200">2. PJ TPS LB3</span>
+            <span class="text-[10px] text-vault-lime font-mono">Review</span>
+          </button>
+          <button type="button" onclick="quickFillLogin('admin_hse', 'admin123')" class="role-quick-btn flex items-center justify-between">
+            <span class="font-medium text-slate-200">3. Admin HSE</span>
+            <span class="text-[10px] text-sky-400 font-mono">Master</span>
+          </button>
+          <button type="button" onclick="quickFillLogin('ktt', 'ktt12345')" class="role-quick-btn flex items-center justify-between">
+            <span class="font-medium text-slate-200">4. Manajemen / KTT</span>
+            <span class="text-[10px] text-purple-400 font-mono">Final TTD</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Legal footer -->
+      <div class="mt-6 text-center">
+        <p class="text-[11px] text-slate-500">
+          TPS LB3 01 PT. Etam Manunggal Jaya &bull; Desa Batuah, Kutai Kartanegara
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================================================================
+       2. APP SHELL & VAULT DASHBOARD (Inspired by Image 2)
+       ====================================================================== -->
+  <div id="appShell" class="app-layout hidden">
+
+    <!-- 2.1 SIDEBAR -->
+    <aside id="sidebar" class="sidebar">
+      <!-- Sidebar Header -->
+      <div class="h-[72px] flex items-center justify-between px-5 border-b border-vault-border">
+        <div class="flex items-center gap-3 overflow-hidden">
+          <div class="w-8 h-8 rounded-xl bg-vault-lime flex items-center justify-center shrink-0 shadow-md shadow-vault-lime/20">
+            <i data-lucide="layers" class="w-4 h-4 text-slate-950 font-bold"></i>
+          </div>
+          <div class="sidebar-header-title leading-tight">
+            <span class="text-sm font-extrabold tracking-tight text-white flex items-center gap-1">
+              EnviroMine<span class="text-vault-lime font-mono text-xs">V1.1</span>
+            </span>
+            <p class="text-[10px] text-slate-400 truncate">PT. Etam Manunggal Jaya</p>
+          </div>
+        </div>
+        <button onclick="toggleSidebarCollapse()" class="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800">
+          <i data-lucide="panel-left-close" id="sidebarToggleIcon" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+      <!-- Navigation Menu -->
+      <div class="flex-1 overflow-y-auto py-4 space-y-6">
+        <!-- Section: MENU -->
+        <div>
+          <p class="px-5 text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-2 nav-text">Menu Operasional</p>
+          <nav class="space-y-1">
+            <a href="javascript:void(0)" onclick="navigateTo('dashboard')" id="nav-dashboard" class="nav-item active">
+              <i data-lucide="layout-dashboard" class="w-4 h-4"></i>
+              <span class="nav-text">Dashboard</span>
+            </a>
+            <a href="javascript:void(0)" onclick="navigateTo('masuk')" id="nav-masuk" class="nav-item">
+              <i data-lucide="arrow-down-to-dot" class="w-4 h-4"></i>
+              <span class="nav-text">Limbah Masuk</span>
+            </a>
+            <a href="javascript:void(0)" onclick="navigateTo('keluar')" id="nav-keluar" class="nav-item">
+              <i data-lucide="arrow-up-from-dot" class="w-4 h-4"></i>
+              <span class="nav-text">Limbah Keluar</span>
+            </a>
+            <a href="javascript:void(0)" onclick="navigateTo('penanganan-khusus')" id="nav-penanganan-khusus" class="nav-item justify-between">
+              <div class="flex items-center gap-3.5">
+                <i data-lucide="alert-triangle" class="w-4 h-4 text-amber-400"></i>
+                <span class="nav-text">Penanganan Khusus</span>
+              </div>
+              <span id="badgePendingPK" class="badge-pill bg-amber-500/20 text-amber-300 text-[10px] px-2 py-0.5 rounded-full font-mono">0</span>
+            </a>
+            <a href="javascript:void(0)" onclick="navigateTo('inspeksi')" id="nav-inspeksi" class="nav-item">
+              <i data-lucide="clipboard-check" class="w-4 h-4"></i>
+              <span class="nav-text">Inspeksi TPS K3L</span>
+            </a>
+            <a href="javascript:void(0)" onclick="navigateTo('logbook')" id="nav-logbook" class="nav-item">
+              <i data-lucide="book-open" class="w-4 h-4"></i>
+              <span class="nav-text">Logbook Permen LHK</span>
+            </a>
+            <a href="javascript:void(0)" onclick="navigateTo('neraca')" id="nav-neraca" class="nav-item justify-between">
+              <div class="flex items-center gap-3.5">
+                <i data-lucide="scale" class="w-4 h-4"></i>
+                <span class="nav-text">Neraca Limbah B3</span>
+              </div>
+              <span id="badgeNeracaDraft" class="badge-pill bg-sky-500/20 text-sky-300 text-[10px] px-2 py-0.5 rounded-full font-mono">3-TTD</span>
+            </a>
+          </nav>
+        </div>
+
+        <!-- Section: MASTER & SETTINGS -->
+        <div>
+          <p class="px-5 text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-2 nav-text">Master & Konfigurasi</p>
+          <nav class="space-y-1">
+            <a href="javascript:void(0)" onclick="navigateTo('rintek')" id="nav-rintek" class="nav-item">
+              <i data-lucide="database" class="w-4 h-4"></i>
+              <span class="nav-text">Master Rintek B3</span>
+            </a>
+            <a href="javascript:void(0)" onclick="navigateTo('pihak-ketiga')" id="nav-pihak-ketiga" class="nav-item">
+              <i data-lucide="truck" class="w-4 h-4"></i>
+              <span class="nav-text">Pihak Ketiga (Transporter)</span>
+            </a>
+            <a href="javascript:void(0)" onclick="navigateTo('users')" id="nav-users" class="nav-item">
+              <i data-lucide="users" class="w-4 h-4"></i>
+              <span class="nav-text">Manajemen Pengguna</span>
+            </a>
+            <a href="javascript:void(0)" onclick="navigateTo('settings')" id="nav-settings" class="nav-item">
+              <i data-lucide="settings" class="w-4 h-4"></i>
+              <span class="nav-text">Pengaturan TPS</span>
+            </a>
+          </nav>
+        </div>
+      </div>
+
+      <!-- Sidebar Footer: Active User & Logout -->
+      <div class="p-3 border-t border-vault-border">
+        <div class="flex items-center justify-between p-2 rounded-xl bg-slate-900/60 border border-slate-800">
+          <div class="flex items-center gap-2.5 overflow-hidden">
+            <div id="userAvatar" class="w-8 h-8 rounded-full bg-slate-800 text-sky-400 font-bold flex items-center justify-center shrink-0 text-xs border border-slate-700">
+              OP
+            </div>
+            <div class="sidebar-footer-content leading-tight truncate">
+              <p id="userNameDisplay" class="text-xs font-semibold text-white truncate">Operator Lapangan</p>
+              <span id="userRoleBadge" class="text-[10px] text-vault-lime font-mono">Operator</span>
+            </div>
+          </div>
+          <button onclick="handleLogout()" title="Keluar dari sistem" class="text-slate-400 hover:text-rose-400 p-1.5 rounded-lg hover:bg-slate-800">
+            <i data-lucide="log-out" class="w-4 h-4"></i>
+          </button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- 2.2 MAIN CONTENT AREA -->
+    <div class="flex-1 flex flex-col min-w-0 overflow-hidden">
+
+      <!-- TOPBAR -->
+      <header class="topbar">
+        <!-- Left: Search / TPS Info -->
+        <div class="flex items-center gap-4">
+          <div class="relative hidden md:block w-72">
+            <i data-lucide="search" class="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2"></i>
+            <input type="text" id="globalSearchInput" onkeyup="handleGlobalSearch(event)" placeholder="Cari limbah, kode, manifes... (Ctrl+K)" 
+                   class="w-full bg-slate-900/80 border border-slate-800 rounded-full pl-9 pr-4 py-1.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-sky-500">
+          </div>
+          <div class="flex items-center gap-2 text-xs font-medium bg-slate-900/70 border border-slate-800/80 px-3 py-1.5 rounded-full">
+            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+            <span class="text-slate-300">TPS LB3 01:</span>
+            <span class="text-vault-lime font-mono">Batuah, Kutai Kartanegara</span>
+          </div>
+        </div>
+
+        <!-- Right: Actions & Profile -->
+        <div class="flex items-center gap-3">
+          <!-- Backend Connection Badge -->
+          <div id="backendStatusBadge" onclick="openGasSettingsModal()" title="Klik untuk konfigurasi Google Apps Script URL"
+               class="cursor-pointer text-[11px] font-mono px-2.5 py-1 rounded-full bg-slate-800/80 border border-slate-700 text-sky-400 flex items-center gap-1.5 hover:border-sky-400">
+            <i data-lucide="cloud" class="w-3.5 h-3.5"></i>
+            <span id="backendStatusText">GAS Mode: Standby</span>
+          </div>
+
+          <!-- Notification Bell -->
+          <div class="relative">
+            <button onclick="toggleNotificationPopover()" class="relative p-2 rounded-full text-slate-400 hover:text-white hover:bg-slate-800/80">
+              <i data-lucide="bell" class="w-4 h-4"></i>
+              <span id="unreadNotifDot" class="absolute top-1 right-1 w-2 h-2 rounded-full bg-rose-500 hidden"></span>
+            </button>
+            <!-- Popover Notifications -->
+            <div id="notifPopover" class="hidden absolute right-0 mt-2 w-80 bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-4 z-50">
+              <div class="flex items-center justify-between pb-2 border-b border-slate-800">
+                <span class="text-xs font-bold text-white">Notifikasi Sistem</span>
+                <span class="text-[10px] text-slate-400">Real-time</span>
+              </div>
+              <div id="notifListContainer" class="mt-3 space-y-2 max-h-64 overflow-y-auto">
+                <p class="text-xs text-slate-500 text-center py-3">Tidak ada notifikasi baru.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Action Button: Add Limbah -->
+          <button onclick="openModalLimbahMasuk()" class="btn-lime-pill">
+            <i data-lucide="plus-circle" class="w-4 h-4"></i>
+            <span class="hidden sm:inline">Catat Limbah</span>
+          </button>
+        </div>
+      </header>
+
+      <!-- MAIN VIEW ROUTER CONTAINER -->
+      <main class="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 space-y-6">
+
+        <!-- ================================================================
+             VIEW 1: DASHBOARD (VAULT DESIGN STYLE)
+             ================================================================ -->
+        <section id="view-dashboard" class="space-y-6">
+
+          <!-- Welcome Banner / Compliance Alert -->
+          <div id="complianceAlertBanner" class="hidden p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-start gap-3.5">
+            <i data-lucide="alert-circle" class="w-5 h-5 text-amber-400 shrink-0 mt-0.5"></i>
+            <div class="flex-1">
+              <h4 class="text-sm font-bold text-amber-300">Peringatan Kepatuhan Masa Simpan (H-7 Alert)</h4>
+              <p id="complianceAlertText" class="text-xs text-amber-200/90 mt-0.5">
+                Terdapat 2 jenis limbah B3 yang mendekati batas maksimal penyimpanan (90/180/365 hari) sesuai Permen LHK No. 6/2021.
+              </p>
+            </div>
+            <button onclick="navigateTo('masuk')" class="text-xs font-semibold px-3 py-1.5 rounded-lg bg-amber-500/20 text-amber-200 hover:bg-amber-500/30">
+              Lihat Detail
+            </button>
+          </div>
+
+          <!-- KPI STAT CARDS (4 Main Metrics in Vault Style) -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            
+            <!-- Card 1: Total Stok TPS -->
+            <div class="kpi-card kpi-card-dark">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-medium text-slate-400 uppercase tracking-wider">Total Stok TPS</span>
+                <div class="kpi-icon-badge bg-vault-lime/10 text-vault-lime">
+                  <i data-lucide="boxes" class="w-5 h-5"></i>
+                </div>
+              </div>
+              <div class="mt-4">
+                <div class="flex items-baseline gap-2">
+                  <h3 id="statTotalStokKg" class="text-2xl sm:text-3xl font-extrabold text-white">0</h3>
+                  <span class="text-xs text-slate-400 font-mono">Kg</span>
+                </div>
+                <p id="statTotalStokTon" class="text-xs text-vault-lime font-medium mt-1">≈ 0.00 Ton</p>
+              </div>
+            </div>
+
+            <!-- Card 2: Kapasitas TPS LB3 (52.5 m2 / 20 Ton) -->
+            <div class="kpi-card kpi-card-dark">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-medium text-slate-400 uppercase tracking-wider">Kapasitas TPS (20 Ton)</span>
+                <div class="kpi-icon-badge bg-sky-500/10 text-sky-400">
+                  <i data-lucide="gauge" class="w-5 h-5"></i>
+                </div>
+              </div>
+              <div class="mt-4">
+                <div class="flex items-baseline justify-between mb-1.5">
+                  <h3 id="statPersenKapasitas" class="text-2xl sm:text-3xl font-extrabold text-white">0%</h3>
+                  <span id="statKapasitasStatus" class="badge-status badge-green">Aman</span>
+                </div>
+                <div class="w-full bg-slate-800 rounded-full h-2 overflow-hidden">
+                  <div id="statProgressBar" class="bg-vault-lime h-full rounded-full transition-all duration-500" style="width: 0%"></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Card 3: Mendekati Jatuh Tempo (H-7) -->
+            <div class="kpi-card kpi-card-dark">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-medium text-slate-400 uppercase tracking-wider">Masa Simpan H-7</span>
+                <div class="kpi-icon-badge bg-amber-500/10 text-amber-400">
+                  <i data-lucide="clock" class="w-5 h-5"></i>
+                </div>
+              </div>
+              <div class="mt-4">
+                <div class="flex items-baseline gap-2">
+                  <h3 id="statAlertH7Count" class="text-2xl sm:text-3xl font-extrabold text-amber-400">0</h3>
+                  <span class="text-xs text-slate-400">Item Limbah</span>
+                </div>
+                <p class="text-xs text-slate-400 mt-1">Batas 90 / 180 / 365 Hari</p>
+              </div>
+            </div>
+
+            <!-- Card 4: Pending Approval Neraca & PK -->
+            <div class="kpi-card kpi-card-dark">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-medium text-slate-400 uppercase tracking-wider">Pending Persetujuan</span>
+                <div class="kpi-icon-badge bg-purple-500/10 text-purple-400">
+                  <i data-lucide="file-signature" class="w-5 h-5"></i>
+                </div>
+              </div>
+              <div class="mt-4">
+                <div class="flex items-baseline gap-2">
+                  <h3 id="statPendingApproval" class="text-2xl sm:text-3xl font-extrabold text-purple-300">0</h3>
+                  <span class="text-xs text-slate-400">Dokumen</span>
+                </div>
+                <p class="text-xs text-purple-300/80 mt-1">Penanganan Khusus & Neraca</p>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Mid Section: Chart & Tag Inventory (Vault Style) -->
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            
+            <!-- Chart: Tren Timbulan Limbah B3 -->
+            <div class="data-card lg:col-span-2">
+              <div class="flex items-center justify-between mb-4">
+                <div>
+                  <h3 class="text-base font-bold text-white">Tren Timbulan & Pengeluaran Limbah B3</h3>
+                  <p class="text-xs text-slate-400">Pencatatan real-time TPS LB3 01 (Kg/Bulan)</p>
+                </div>
+                <div class="flex items-center gap-2">
+                  <span class="flex items-center gap-1 text-[11px] text-slate-300">
+                    <span class="w-2.5 h-2.5 rounded-full bg-vault-lime"></span> Masuk
+                  </span>
+                  <span class="flex items-center gap-1 text-[11px] text-slate-300">
+                    <span class="w-2.5 h-2.5 rounded-full bg-sky-400"></span> Diserahkan (Out)
+                  </span>
+                </div>
+              </div>
+              <div class="h-64 sm:h-72 w-full">
+                <canvas id="timbulanChart"></canvas>
+              </div>
+            </div>
+
+            <!-- Inventory Breakdown by Category -->
+            <div class="data-card flex flex-col justify-between">
+              <div>
+                <div class="flex items-center justify-between mb-3">
+                  <h3 class="text-base font-bold text-white">Stok Kategori Rintek</h3>
+                  <span class="text-xs font-mono text-vault-lime">9 Terdaftar</span>
+                </div>
+                <p class="text-xs text-slate-400 mb-4">Distribusi fisik limbah B3 di dalam TPS 01.</p>
+                
+                <div id="stokKategoriList" class="space-y-3 max-h-56 overflow-y-auto pr-1">
+                  <!-- Populated by JS -->
+                </div>
+              </div>
+
+              <div class="mt-4 pt-4 border-t border-vault-border">
+                <div class="flex items-center justify-between text-xs">
+                  <span class="text-slate-400">Kepatuhan Rintek:</span>
+                  <span class="text-emerald-400 font-bold flex items-center gap-1">
+                    <i data-lucide="check-check" class="w-3.5 h-3.5"></i> 100% Valid
+                  </span>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Bottom: Recent Transactions Table -->
+          <div class="data-card">
+            <div class="flex items-center justify-between mb-4">
+              <div>
+                <h3 class="text-base font-bold text-white">Transaksi Limbah Terkini</h3>
+                <p class="text-xs text-slate-400">5 Pencatatan masuk dan keluar terakhir</p>
+              </div>
+              <button onclick="navigateTo('logbook')" class="text-xs text-sky-400 hover:underline flex items-center gap-1">
+                Buka Seluruh Logbook <i data-lucide="chevron-right" class="w-3.5 h-3.5"></i>
+              </button>
+            </div>
+
+            <div class="overflow-x-auto rounded-xl border border-vault-border">
+              <table class="custom-table">
+                <thead>
+                  <tr>
+                    <th>ID / Waktu</th>
+                    <th>Kode & Nama Limbah</th>
+                    <th>Jumlah</th>
+                    <th>Status Rintek</th>
+                    <th>Status Stok</th>
+                    <th>Operator</th>
+                  </tr>
+                </thead>
+                <tbody id="dashboardRecentTableBody">
+                  <!-- Populated by JS -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+        </section>
+
+        <!-- ================================================================
+             VIEW 2: LIMBAH MASUK
+             ================================================================ -->
+        <section id="view-masuk" class="space-y-6 hidden">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h2 class="text-xl font-bold text-white">Pencatatan Limbah Masuk (TPS LB3 01)</h2>
+              <p class="text-xs text-slate-400">Validasi otomatis terhadap Rincian Teknis & kalkulasi batas masa simpan</p>
+            </div>
+            <button onclick="openModalLimbahMasuk()" class="btn-lime-pill">
+              <i data-lucide="plus" class="w-4 h-4"></i>
+              <span>Input Limbah Masuk</span>
+            </button>
+          </div>
+
+          <!-- Table Limbah Masuk -->
+          <div class="data-card">
+            <div class="overflow-x-auto rounded-xl border border-vault-border">
+              <table class="custom-table">
+                <thead>
+                  <tr>
+                    <th>ID Masuk</th>
+                    <th>Tanggal Masuk</th>
+                    <th>Kode</th>
+                    <th>Nama Limbah</th>
+                    <th>Jumlah</th>
+                    <th>Status Rintek</th>
+                    <th>Jatuh Tempo</th>
+                    <th>Sisa Hari</th>
+                    <th>Operator</th>
+                    <th>Stok</th>
+                    <th>Aksi</th>
+                  </tr>
+                </thead>
+                <tbody id="tableLimbahMasukBody">
+                  <!-- Populated by JS -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- ================================================================
+             VIEW 3: LIMBAH KELUAR
+             ================================================================ -->
+        <section id="view-keluar" class="space-y-6 hidden">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h2 class="text-xl font-bold text-white">Pencatatan Limbah Keluar (Penyerahan ke Pihak Ketiga)</h2>
+              <p class="text-xs text-slate-400">Wajib verifikasi Surat Jalan dan Manifes Festronik resmi</p>
+            </div>
+            <button onclick="openModalLimbahKeluar()" class="btn-primary-pill !w-auto">
+              <i data-lucide="truck" class="w-4 h-4"></i>
+              <span>Catat Pengeluaran Limbah</span>
+            </button>
+          </div>
+
+          <div class="data-card">
+            <div class="overflow-x-auto rounded-xl border border-vault-border">
+              <table class="custom-table">
+                <thead>
+                  <tr>
+                    <th>ID Keluar</th>
+                    <th>Ref ID Masuk</th>
+                    <th>Tanggal Keluar</th>
+                    <th>Limbah</th>
+                    <th>Jumlah</th>
+                    <th>Pihak Ketiga</th>
+                    <th>Surat Jalan & Manifes</th>
+                    <th>Petugas</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody id="tableLimbahKeluarBody">
+                  <!-- Populated by JS -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- ================================================================
+             VIEW 4: PENANGANAN KHUSUS (APPROVAL PJ TPS)
+             ================================================================ -->
+        <section id="view-penanganan-khusus" class="space-y-6 hidden">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h2 class="text-xl font-bold text-white">Antrean Limbah Penanganan Khusus</h2>
+              <p class="text-xs text-slate-400">Verifikasi limbah non-rintek yang membutuhkan telaah teknis Penanggung Jawab TPS</p>
+            </div>
+            <span class="text-xs px-3 py-1 rounded-full bg-amber-500/10 text-amber-300 border border-amber-500/30 font-medium">
+              Otoritas: Penanggung Jawab TPS
+            </span>
+          </div>
+
+          <div class="data-card">
+            <div class="overflow-x-auto rounded-xl border border-vault-border">
+              <table class="custom-table">
+                <thead>
+                  <tr>
+                    <th>ID PK</th>
+                    <th>Ref ID Masuk</th>
+                    <th>Limbah</th>
+                    <th>Alasan Khusus</th>
+                    <th>Status Review</th>
+                    <th>Approver</th>
+                    <th>Catatan Tindak Lanjut</th>
+                    <th>Aksi</th>
+                  </tr>
+                </thead>
+                <tbody id="tablePenangananKhususBody">
+                  <!-- Populated by JS -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- ================================================================
+             VIEW 5: INSPEKSI TPS K3L BERKALA
+             ================================================================ -->
+        <section id="view-inspeksi" class="space-y-6 hidden">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h2 class="text-xl font-bold text-white">Inspeksi Sarana & K3L TPS LB3 01</h2>
+              <p class="text-xs text-slate-400">Pemantauan APAR, eyewash, saluran drainase, bak oil catcher, dan rambu keselamatan</p>
+            </div>
+            <button onclick="openModalInspeksi()" class="btn-lime-pill">
+              <i data-lucide="clipboard-check" class="w-4 h-4"></i>
+              <span>Isi Checklist Inspeksi</span>
+            </button>
+          </div>
+
+          <div class="data-card">
+            <h3 class="text-base font-bold text-white mb-4">Riwayat Pemeriksaan Fasilitas TPS</h3>
+            <div class="overflow-x-auto rounded-xl border border-vault-border">
+              <table class="custom-table">
+                <thead>
+                  <tr>
+                    <th>ID Inspeksi</th>
+                    <th>Tanggal</th>
+                    <th>Item Fasilitas K3L</th>
+                    <th>Kondisi Fisik</th>
+                    <th>Catatan Temuan</th>
+                    <th>Foto Bukti</th>
+                    <th>Petugas Inspeksi</th>
+                  </tr>
+                </thead>
+                <tbody id="tableInspeksiBody">
+                  <!-- Populated by JS -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- ================================================================
+             VIEW 6: LOGBOOK PERMEN LHK NO. 6/2021 (LAMPIRAN IX)
+             ================================================================ -->
+        <section id="view-logbook" class="space-y-6 hidden">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 no-print">
+            <div>
+              <h2 class="text-xl font-bold text-white">Logbook Pencatatan Limbah B3</h2>
+              <p class="text-xs text-slate-400">Sesuai Format Resmi Lampiran IX Peraturan Menteri LHK No. 6 Tahun 2021</p>
+            </div>
+            <div class="flex items-center gap-2">
+              <button onclick="exportLogbookCSV()" class="btn-primary-pill !w-auto !py-2 !px-3 text-xs bg-slate-800 hover:bg-slate-700">
+                <i data-lucide="file-spreadsheet" class="w-4 h-4"></i>
+                <span>Download CSV</span>
+              </button>
+              <button onclick="window.print()" class="btn-lime-pill !py-2 !px-3 text-xs">
+                <i data-lucide="printer" class="w-4 h-4"></i>
+                <span>Cetak / Simpan PDF</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Official Report Layout for Screen & Print -->
+          <div class="data-card bg-slate-900/90 print:bg-white print:text-black">
+            <!-- Official Header -->
+            <div class="regulatory-header text-center mb-6 pb-4 border-b border-slate-700 print:border-black">
+              <h3 class="text-sm sm:text-base font-extrabold uppercase tracking-wide">
+                LOGBOOK PENCATATAN PENGELOLAAN LIMBAH BAHAN BERBAHAYA DAN BERACUN
+              </h3>
+              <p class="text-xs text-slate-300 print:text-black mt-1">
+                TEMPAT PENYIMPANAN SEMENTARA (TPS LB3 01) — PT. ETAM MANUNGGAL JAYA
+              </p>
+              <p class="text-[11px] text-slate-400 print:text-gray-600">
+                Lokasi: Desa Batuah, Kec. Loa Janan, Kab. Kutai Kartanegara, Prov. Kalimantan Timur
+              </p>
+            </div>
+
+            <!-- Table Logbook -->
+            <div class="overflow-x-auto">
+              <table class="regulatory-table custom-table text-xs">
+                <thead>
+                  <tr class="bg-slate-800 print:bg-gray-200">
+                    <th rowspan="2" class="text-center align-middle">No</th>
+                    <th colspan="4" class="text-center">Limbah B3 Masuk</th>
+                    <th colspan="3" class="text-center">Limbah B3 Keluar</th>
+                    <th rowspan="2" class="text-center align-middle">Sisa Limbah di TPS</th>
+                    <th rowspan="2" class="text-center align-middle">Petugas (Paraf)</th>
+                  </tr>
+                  <tr class="bg-slate-800/80 print:bg-gray-100">
+                    <th>Tanggal Masuk</th>
+                    <th>Kode Limbah</th>
+                    <th>Nama Limbah</th>
+                    <th>Jumlah</th>
+                    <th>Tanggal Keluar</th>
+                    <th>Tujuan Pengolah/Pemanfaat</th>
+                    <th>Jumlah</th>
+                  </tr>
+                </thead>
+                <tbody id="tableLogbookBody">
+                  <!-- Populated by JS -->
+                </tbody>
+              </table>
+            </div>
+
+            <div class="mt-6 text-right text-xs text-slate-400 print:text-black">
+              <p>Dicetak otomatis via Sistem EnviroMine Monitor V1.1 — <span id="logbookPrintDate"></span></p>
+            </div>
+          </div>
+        </section>
+
+        <!-- ================================================================
+             VIEW 7: NERACA LIMBAH B3 & E-SIGNATURE 3 TINGKAT
+             ================================================================ -->
+        <section id="view-neraca" class="space-y-6 hidden">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 no-print">
+            <div>
+              <h2 class="text-xl font-bold text-white">Neraca Limbah B3 (Lampiran IX Permen LHK 6/2021)</h2>
+              <p class="text-xs text-slate-400">Penetapan Kinerja Pengelolaan & Pengesahan Digital Berjenjang 3 Tingkat</p>
+            </div>
+            <div class="flex items-center gap-2">
+              <button onclick="generateDraftNeracaPrompt()" class="btn-lime-pill !py-2 !px-3 text-xs">
+                <i data-lucide="plus" class="w-4 h-4"></i>
+                <span>Generate Draft Neraca Baru</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- List of Neraca Batches -->
+          <div id="neracaListContainer" class="space-y-6">
+            <!-- Populated by JS -->
+          </div>
+        </section>
+
+        <!-- ================================================================
+             VIEW 8: MASTER RINTEK B3 (9 LIMBAH PT EMJ)
+             ================================================================ -->
+        <section id="view-rintek" class="space-y-6 hidden">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h2 class="text-xl font-bold text-white">Master Rincian Teknis (Rintek) TPS LB3 01</h2>
+              <p class="text-xs text-slate-400">9 Limbah B3 Resmi yang disetujui untuk PT. Etam Manunggal Jaya</p>
+            </div>
+            <button onclick="openModalTambahRintek()" class="btn-primary-pill !w-auto text-xs">
+              <i data-lucide="plus" class="w-4 h-4"></i>
+              <span>Tambah Rintek</span>
+            </button>
+          </div>
+
+          <div class="data-card">
+            <div class="overflow-x-auto rounded-xl border border-vault-border">
+              <table class="custom-table">
+                <thead>
+                  <tr>
+                    <th>Kode</th>
+                    <th>Nama Limbah B3</th>
+                    <th>Sumber</th>
+                    <th>Karakteristik Bahaya</th>
+                    <th>Wadah / Pengemasan</th>
+                    <th>Kapasitas Wadah</th>
+                    <th>Batas Waktu Simpan</th>
+                  </tr>
+                </thead>
+                <tbody id="tableMasterRintekBody">
+                  <!-- Populated by JS -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- ================================================================
+             VIEW 9: PIHAK KETIGA / TRANSPORTER
+             ================================================================ -->
+        <section id="view-pihak-ketiga" class="space-y-6 hidden">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h2 class="text-xl font-bold text-white">Pihak Ketiga Berizin (Pengangkut & Pengolah)</h2>
+              <p class="text-xs text-slate-400">Mitra berizin resmi KLHK untuk penyerahan limbah B3 lanjutan</p>
+            </div>
+            <button onclick="openModalTambahPihakKetiga()" class="btn-lime-pill text-xs">
+              <i data-lucide="plus" class="w-4 h-4"></i>
+              <span>Tambah Pihak Ketiga</span>
+            </button>
+          </div>
+
+          <div class="data-card">
+            <div class="overflow-x-auto rounded-xl border border-vault-border">
+              <table class="custom-table">
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Nama Perusahaan</th>
+                    <th>No. Izin KLHK</th>
+                    <th>Alamat Operasional</th>
+                    <th>Kontak Person</th>
+                  </tr>
+                </thead>
+                <tbody id="tablePihakKetigaBody">
+                  <!-- Populated by JS -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- ================================================================
+             VIEW 10: MANAJEMEN PENGGUNA (ADMIN HSE)
+             ================================================================ -->
+        <section id="view-users" class="space-y-6 hidden">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h2 class="text-xl font-bold text-white">Manajemen Akun Pengguna & Hak Akses</h2>
+              <p class="text-xs text-slate-400">Kelola 4 level peran: Operator, Penanggung Jawab, Admin HSE, dan KTT</p>
+            </div>
+            <button onclick="openModalTambahUser()" class="btn-lime-pill text-xs">
+              <i data-lucide="user-plus" class="w-4 h-4"></i>
+              <span>Tambah Pengguna</span>
+            </button>
+          </div>
+
+          <div class="data-card">
+            <div class="overflow-x-auto rounded-xl border border-vault-border">
+              <table class="custom-table">
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Nama Lengkap</th>
+                    <th>Username</th>
+                    <th>Peran / Role</th>
+                    <th>Status Akun</th>
+                    <th>Aksi</th>
+                  </tr>
+                </thead>
+                <tbody id="tableUsersBody">
+                  <!-- Populated by JS -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- ================================================================
+             VIEW 11: PENGATURAN TPS & AUDIT LOG
+             ================================================================ -->
+        <section id="view-settings" class="space-y-6 hidden">
+          <div>
+            <h2 class="text-xl font-bold text-white">Pengaturan Sistem & Informasi Legal</h2>
+            <p class="text-xs text-slate-400">Konfigurasi kapasitas fisik, koordinat, dan integrasi Google Cloud</p>
+          </div>
+
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- Profil TPS LB3 -->
+            <div class="data-card space-y-4">
+              <h3 class="text-base font-bold text-white flex items-center gap-2">
+                <i data-lucide="building" class="w-4 h-4 text-sky-400"></i> Identitas Fasilitas TPS LB3 01
+              </h3>
+
+              <div>
+                <label class="block text-xs font-semibold text-slate-400 mb-1">Nama Perusahaan</label>
+                <input type="text" id="setPerusahaan" value="PT. Etam Manunggal Jaya" class="auth-input !py-2 text-xs">
+              </div>
+
+              <div>
+                <label class="block text-xs font-semibold text-slate-400 mb-1">Titik Koordinat & Lokasi</label>
+                <input type="text" id="setLokasi" value="Desa Batuah, Loa Janan, Kukar (00°48'04,6'' LS / 117°04'41,9'' BT)" class="auth-input !py-2 text-xs">
+              </div>
+
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label class="block text-xs font-semibold text-slate-400 mb-1">Luas Bangunan</label>
+                  <input type="text" id="setLuas" value="52.5 m²" class="auth-input !py-2 text-xs">
+                </div>
+                <div>
+                  <label class="block text-xs font-semibold text-slate-400 mb-1">Kapasitas Maksimal</label>
+                  <input type="text" id="setKapasitas" value="20 Ton" class="auth-input !py-2 text-xs">
+                </div>
+              </div>
+
+              <div>
+                <label class="block text-xs font-semibold text-slate-400 mb-1">Penanggung Jawab Teknis</label>
+                <input type="text" id="setPJ" value="Hermanto (Direktur)" class="auth-input !py-2 text-xs">
+              </div>
+
+              <button onclick="saveSettingsForm()" class="btn-lime-pill !w-full justify-center">
+                Simpan Profil TPS
+              </button>
+            </div>
+
+            <!-- GAS Backend Integration Card -->
+            <div class="data-card space-y-4">
+              <h3 class="text-base font-bold text-white flex items-center gap-2">
+                <i data-lucide="cloud-cog" class="w-4 h-4 text-vault-lime"></i> Integrasi Google Apps Script
+              </h3>
+              <p class="text-xs text-slate-400">
+                Aplikasi ini mendukung mode <strong>Hybrid</strong>: Dapat berjalan di GitHub Pages dengan menghubungkan Web App URL dari GAS backend (`Code.gs`), atau berjalan langsung dengan Local Storage Engine.
+              </p>
+
+              <div>
+                <label class="block text-xs font-semibold text-slate-400 mb-1">Google Apps Script Web App Exec URL</label>
+                <input type="url" id="inputGasUrl" placeholder="https://script.google.com/macros/s/.../exec" class="auth-input !py-2 text-xs font-mono">
+              </div>
+
+              <div class="flex items-center gap-2">
+                <button onclick="saveGasUrlConfig()" class="btn-primary-pill !py-2 !px-4 text-xs !w-auto">
+                  Simpan & Test Koneksi
+                </button>
+                <button onclick="resetToLocalEngine()" class="role-quick-btn text-xs">
+                  Gunakan Local Demo Engine
+                </button>
+              </div>
+
+              <div class="p-3 rounded-xl bg-slate-900 border border-slate-800 text-xs space-y-1">
+                <div class="flex items-center justify-between">
+                  <span class="text-slate-400">Status Database:</span>
+                  <span id="cfgDbStatus" class="text-vault-lime font-mono">Siap Digunakan</span>
+                </div>
+                <div class="flex items-center justify-between">
+                  <span class="text-slate-400">Folder Storage Drive:</span>
+                  <span class="text-sky-400 font-mono">EnviroMine_Monitor_Data</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Audit Log Table -->
+          <div class="data-card">
+            <h3 class="text-base font-bold text-white mb-3">Jejak Audit Aktivitas (Audit Trail)</h3>
+            <div class="overflow-x-auto rounded-xl border border-vault-border max-h-60 overflow-y-auto">
+              <table class="custom-table text-xs">
+                <thead>
+                  <tr>
+                    <th>Waktu</th>
+                    <th>Pengguna</th>
+                    <th>Aksi</th>
+                    <th>Keterangan</th>
+                  </tr>
+                </thead>
+                <tbody id="tableAuditLogsBody">
+                  <!-- Populated by JS -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+      </main>
+    </div>
+  </div>
+
+  <!-- ======================================================================
+       3. MODALS
+       ====================================================================== -->
+
+  <!-- Modal 3.1: Input Limbah Masuk -->
+  <div id="modalLimbahMasuk" class="modal-backdrop fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-slate-900 border border-slate-700/80 rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+        <h3 class="text-base font-bold text-white flex items-center gap-2">
+          <i data-lucide="arrow-down-to-dot" class="w-5 h-5 text-vault-lime"></i>
+          Pencatatan Limbah Masuk ke TPS
+        </h3>
+        <button onclick="closeModal('modalLimbahMasuk')" class="text-slate-400 hover:text-white">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <form id="formLimbahMasuk" onsubmit="handleFormLimbahMasuk(event)" class="space-y-3.5">
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">Pilih Jenis Limbah B3 (Rintek PT EMJ)</label>
+          <select id="masukJenisSelect" onchange="handleSelectLimbahRintek(this.value)" required class="auth-input !py-2 text-xs">
+            <option value="">-- Pilih Limbah Terdaftar di Rintek --</option>
+            <!-- Populated by JS from Master Rintek -->
+            <option value="CUSTOM_NON_RINTEK">+ Lainnya (Di Luar Rintek - Penanganan Khusus)</option>
+          </select>
+        </div>
+
+        <!-- Warning Box jika non-rintek -->
+        <div id="nonRintekWarnBox" class="hidden p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs text-amber-300">
+          <p class="font-bold flex items-center gap-1.5">
+            <i data-lucide="alert-triangle" class="w-4 h-4"></i> Soft Warning: Limbah di Luar Rintek
+          </p>
+          <p class="text-[11px] text-amber-200/80 mt-1">
+            Limbah ini akan otomatis diberi flag <strong>"Penanganan Khusus"</strong> dan wajib diverifikasi oleh Penanggung Jawab TPS.
+          </p>
+          <input type="text" id="masukAlasanKhusus" placeholder="Alasan penanganan khusus..." class="auth-input !py-1.5 text-xs mt-2">
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-300 mb-1">Kode Limbah</label>
+            <input type="text" id="masukKode" required readonly class="auth-input !py-2 text-xs bg-slate-800 text-sky-400 font-mono">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-300 mb-1">Karakteristik</label>
+            <input type="text" id="masukKarakteristik" readonly class="auth-input !py-2 text-xs bg-slate-800 text-slate-300">
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-300 mb-1">Jumlah</label>
+            <input type="number" step="0.01" id="masukJumlah" required placeholder="0.00" class="auth-input !py-2 text-xs">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-300 mb-1">Satuan</label>
+            <select id="masukSatuan" class="auth-input !py-2 text-xs">
+              <option value="Kg">Kg</option>
+              <option value="Liter">Liter</option>
+              <option value="Ton">Ton</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-300 mb-1">Tanggal Masuk</label>
+            <input type="datetime-local" id="masukTanggal" required class="auth-input !py-2 text-xs">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-300 mb-1">Masa Simpan (Hari)</label>
+            <input type="text" id="masukBatasHari" readonly class="auth-input !py-2 text-xs bg-slate-800 text-slate-300 font-mono">
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">Upload Foto Kondisi Kemasan / Limbah</label>
+          <input type="file" id="masukFotoFile" accept="image/*" class="w-full text-xs text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-slate-800 file:text-sky-400 hover:file:bg-slate-700">
+        </div>
+
+        <div class="pt-3 border-t border-slate-800 flex justify-end gap-2">
+          <button type="button" onclick="closeModal('modalLimbahMasuk')" class="role-quick-btn">Batal</button>
+          <button type="submit" class="btn-lime-pill">Simpan Data Masuk</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal 3.2: Input Limbah Keluar -->
+  <div id="modalLimbahKeluar" class="modal-backdrop fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-slate-900 border border-slate-700/80 rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+        <h3 class="text-base font-bold text-white flex items-center gap-2">
+          <i data-lucide="truck" class="w-5 h-5 text-sky-400"></i>
+          Pencatatan Limbah Keluar (Penyerahan)
+        </h3>
+        <button onclick="closeModal('modalLimbahKeluar')" class="text-slate-400 hover:text-white">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <form id="formLimbahKeluar" onsubmit="handleFormLimbahKeluar(event)" class="space-y-3.5">
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">Pilih Limbah Tersedia di Stok TPS</label>
+          <select id="keluarRefMasukSelect" onchange="handleSelectStokKeluar(this.value)" required class="auth-input !py-2 text-xs">
+            <option value="">-- Pilih dari Stok Masuk yang Tersedia --</option>
+            <!-- Populated by JS -->
+          </select>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-300 mb-1">Jumlah Dikeluarkan</label>
+            <input type="number" step="0.01" id="keluarJumlah" required class="auth-input !py-2 text-xs">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-300 mb-1">Tanggal Penyerahan</label>
+            <input type="datetime-local" id="keluarTanggal" required class="auth-input !py-2 text-xs">
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">Pihak Ketiga (Tujuan Pengangkut/Pengolah)</label>
+          <select id="keluarPihakKetigaSelect" class="auth-input !py-2 text-xs">
+            <!-- Populated by JS -->
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">Nomor Surat Jalan & Upload Dokumen</label>
+          <input type="text" id="keluarNoSJ" required placeholder="No. SJ (misal: SJ/EMJ/2026/001)" class="auth-input !py-2 text-xs mb-2">
+          <input type="file" id="keluarFileSJ" accept="image/*,.pdf" class="w-full text-xs text-slate-400 file:mr-4 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-slate-800 file:text-sky-400">
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">Nomor Manifes Festronik & Bukti</label>
+          <input type="text" id="keluarNoManifes" required placeholder="No. Manifes / Festronik KLHK" class="auth-input !py-2 text-xs mb-2">
+          <input type="file" id="keluarFileManifes" accept="image/*,.pdf" class="w-full text-xs text-slate-400 file:mr-4 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-slate-800 file:text-sky-400">
+        </div>
+
+        <div class="pt-3 border-t border-slate-800 flex justify-end gap-2">
+          <button type="button" onclick="closeModal('modalLimbahKeluar')" class="role-quick-btn">Batal</button>
+          <button type="submit" class="btn-primary-pill !w-auto">Simpan Pengeluaran</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal 3.3: Digital Signature Pad (3-Tier Approval) -->
+  <div id="modalSignature" class="modal-backdrop fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-slate-900 border border-slate-700/80 rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+        <div>
+          <h3 class="text-base font-bold text-white flex items-center gap-2">
+            <i data-lucide="pen-tool" class="w-5 h-5 text-vault-lime"></i>
+            Tanda Tangan Digital (E-Signature)
+          </h3>
+          <p id="signatureRoleLabel" class="text-xs text-slate-400 mt-0.5">Penandatangan: Operator TPS</p>
+        </div>
+        <button onclick="closeModal('modalSignature')" class="text-slate-400 hover:text-white">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <p class="text-xs text-slate-300">
+        Bubuhkan tanda tangan Anda di area putih di bawah ini menggunakan sentuhan jari (HP/Tablet) atau mouse (PC):
+      </p>
+
+      <!-- Signature Canvas Box -->
+      <div class="signature-pad-container">
+        <canvas id="signatureCanvas" class="signature-canvas"></canvas>
+      </div>
+
+      <div class="flex items-center justify-between pt-2">
+        <button type="button" onclick="clearSignatureCanvas()" class="role-quick-btn flex items-center gap-1">
+          <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i> Hapus Goresan
+        </button>
+        <div class="flex items-center gap-2">
+          <button type="button" onclick="closeModal('modalSignature')" class="role-quick-btn">Batal</button>
+          <button type="button" onclick="submitDigitalSignature()" class="btn-lime-pill">
+            Simpan & Sahkan
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal 3.4: Inspeksi Fasilitas K3L TPS -->
+  <div id="modalInspeksi" class="modal-backdrop fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-slate-900 border border-slate-700/80 rounded-3xl max-w-xl w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+        <div>
+          <h3 class="text-base font-bold text-white flex items-center gap-2">
+            <i data-lucide="clipboard-check" class="w-5 h-5 text-vault-lime"></i>
+            Checklist Inspeksi Sarana K3L TPS 01
+          </h3>
+          <p class="text-xs text-slate-400">8 Fasilitas darurat dan teknis sesuai Rintek PT EMJ</p>
+        </div>
+        <button onclick="closeModal('modalInspeksi')" class="text-slate-400 hover:text-white">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <form id="formInspeksi" onsubmit="handleFormInspeksi(event)" class="space-y-4">
+        <div id="inspeksiItemsContainer" class="space-y-3">
+          <!-- 8 items from Rintek will be rendered by JS -->
+        </div>
+
+        <div class="pt-3 border-t border-slate-800 flex justify-end gap-2">
+          <button type="button" onclick="closeModal('modalInspeksi')" class="role-quick-btn">Batal</button>
+          <button type="submit" class="btn-lime-pill">Simpan Hasil Inspeksi</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal 3.5: Konfigurasi URL Google Apps Script -->
+  <div id="modalGasConfig" class="modal-backdrop fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-slate-900 border border-slate-700/80 rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+        <h3 class="text-base font-bold text-white flex items-center gap-2">
+          <i data-lucide="link-2" class="w-5 h-5 text-sky-400"></i>
+          Konfigurasi Endpoint Apps Script
+        </h3>
+        <button onclick="closeModal('modalGasConfig')" class="text-slate-400 hover:text-white">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <p class="text-xs text-slate-300 leading-relaxed">
+        Masukkan URL Web App dari file <code class="text-vault-lime">gas/Code.gs</code> yang telah di-deploy ke Google Apps Script (Deploy as Web App, Access: Anyone).
+      </p>
+
+      <div>
+        <label class="block text-xs font-semibold text-slate-400 mb-1">Web App Exec URL</label>
+        <input type="url" id="modalGasUrlInput" placeholder="https://script.google.com/macros/s/.../exec" class="auth-input !py-2 text-xs font-mono">
+      </div>
+
+      <div class="pt-2 flex justify-end gap-2">
+        <button type="button" onclick="closeModal('modalGasConfig')" class="role-quick-btn">Batal</button>
+        <button type="button" onclick="saveModalGasUrl()" class="btn-lime-pill">Simpan URL</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div id="toastContainer" class="fixed bottom-5 right-5 z-50 space-y-2 pointer-events-none"></div>
+
+  <!-- Application Logic JS -->
+  <script src="app.js"></script>
+  <script>
+    // Initialize Lucide icons on load
+    document.addEventListener('DOMContentLoaded', () => {
+      lucide.createIcons();
+    });
+  </script>
+</body>
+</html>

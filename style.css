@@ -1,0 +1,475 @@
+/* ==========================================================================
+   ENVIROMINE MONITOR — LIMBAH B3 V1.1 (PT. ETAM MANUNGGAL JAYA)
+   Modern Dark Aesthetic & Vault Design System
+   ========================================================================== */
+
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+:root {
+  /* Color Palette - Vault & Dark Slate */
+  --bg-primary: #0d0f15;
+  --bg-surface: #141721;
+  --bg-card: #1b1f2e;
+  --bg-sidebar: #0f1118;
+  --border-color: rgba(255, 255, 255, 0.08);
+  --border-focus: #38bdf8;
+  
+  /* Brand & Accents */
+  --accent-lime: #d4f933;       /* Vault signature neon lime */
+  --accent-blue: #38bdf8;       /* Anywhere App vibrant cyan/blue */
+  --accent-emerald: #10b981;    /* Safety green */
+  --accent-amber: #f59e0b;      /* Warning H-7 / 80% capacity */
+  --accent-rose: #ef4444;       /* Hazard / Overdue / Non-rintek */
+  
+  /* Text */
+  --text-main: #f8fafc;
+  --text-muted: #94a3b8;
+  --text-dark: #0f172a;
+
+  /* Typography */
+  --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  background-color: var(--bg-primary);
+  color: var(--text-main);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-primary);
+}
+::-webkit-scrollbar-thumb {
+  background: #2d3748;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #4a5568;
+}
+
+/* --------------------------------------------------------------------------
+   LOGIN SCREEN (Inspired by Image 1 - Dark Anywhere App)
+   -------------------------------------------------------------------------- */
+.auth-wrapper {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  background: radial-gradient(circle at 10% 20%, rgba(56, 189, 248, 0.07) 0%, transparent 40%),
+              radial-gradient(circle at 90% 80%, rgba(212, 249, 51, 0.05) 0%, transparent 40%),
+              #090b10;
+  overflow: hidden;
+  padding: 1.5rem;
+}
+
+.auth-backdrop-graphic {
+  position: absolute;
+  right: -5%;
+  top: -10%;
+  width: 55%;
+  height: 120%;
+  background-image: url('https://images.unsplash.com/photo-1519681393784-d120267933ba?auto=format&fit=crop&w=1600&q=80');
+  background-size: cover;
+  background-position: center;
+  opacity: 0.22;
+  filter: grayscale(40%) contrast(120%);
+  mask-image: radial-gradient(circle at center, black 30%, transparent 75%);
+  -webkit-mask-image: radial-gradient(circle at center, black 30%, transparent 75%);
+  pointer-events: none;
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 480px;
+  background: rgba(20, 24, 34, 0.85);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 28px;
+  padding: 2.75rem 2.5rem;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.05);
+  position: relative;
+  z-index: 10;
+}
+
+.auth-input-group {
+  position: relative;
+  margin-bottom: 1.25rem;
+}
+
+.auth-input {
+  width: 100%;
+  background: #181d2a;
+  border: 1.5px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  padding: 0.9rem 1rem 0.9rem 2.85rem;
+  color: #fff;
+  font-size: 0.95rem;
+  outline: none;
+  transition: all 0.25s ease;
+}
+
+.auth-input:focus {
+  border-color: var(--accent-blue);
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.2);
+  background: #1b2130;
+}
+
+.auth-input-icon {
+  position: absolute;
+  left: 1rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #64748b;
+  pointer-events: none;
+  transition: color 0.25s ease;
+}
+
+.auth-input:focus ~ .auth-input-icon {
+  color: var(--accent-blue);
+}
+
+.btn-primary-pill {
+  width: 100%;
+  background: #2563eb;
+  background: linear-gradient(135deg, #0284c7 0%, #2563eb 100%);
+  color: #ffffff;
+  font-weight: 600;
+  padding: 0.9rem 1.5rem;
+  border-radius: 9999px;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 10px 20px -5px rgba(37, 99, 235, 0.4);
+  transition: all 0.25s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.btn-primary-pill:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 15px 25px -5px rgba(37, 99, 235, 0.6);
+  filter: brightness(1.1);
+}
+
+.btn-lime-pill {
+  background: var(--accent-lime);
+  color: var(--text-dark);
+  font-weight: 700;
+  padding: 0.65rem 1.25rem;
+  border-radius: 9999px;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 8px 18px -4px rgba(212, 249, 51, 0.35);
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.875rem;
+}
+
+.btn-lime-pill:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 22px -4px rgba(212, 249, 51, 0.5);
+}
+
+/* Role Badges in Login Demo Quick Switch */
+.role-quick-btn {
+  background: #171b26;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--text-muted);
+  border-radius: 12px;
+  padding: 0.45rem 0.75rem;
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.role-quick-btn:hover {
+  background: #202636;
+  color: #fff;
+  border-color: var(--accent-blue);
+}
+
+/* --------------------------------------------------------------------------
+   VAULT DASHBOARD LAYOUT (Inspired by Image 2 - Vault Interface)
+   -------------------------------------------------------------------------- */
+.app-layout {
+  display: flex;
+  min-height: 100vh;
+}
+
+.sidebar {
+  width: 260px;
+  background: var(--bg-sidebar);
+  border-right: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 40;
+}
+
+.sidebar.collapsed {
+  width: 78px;
+}
+
+.sidebar.collapsed .nav-text,
+.sidebar.collapsed .badge-pill,
+.sidebar.collapsed .sidebar-header-title,
+.sidebar.collapsed .sidebar-footer-content {
+  display: none;
+}
+
+.sidebar.collapsed .nav-item {
+  justify-content: center;
+  padding: 0.75rem;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 0.75rem 1.15rem;
+  color: #94a3b8;
+  text-decoration: none;
+  border-radius: 14px;
+  margin: 0.2rem 0.75rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.nav-item:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: #ffffff;
+}
+
+.nav-item.active {
+  background: rgba(212, 249, 51, 0.12);
+  color: var(--accent-lime);
+  font-weight: 600;
+}
+
+.nav-item.active svg {
+  stroke: var(--accent-lime);
+}
+
+/* Topbar */
+.topbar {
+  height: 72px;
+  background: rgba(13, 15, 21, 0.8);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 1.75rem;
+  position: sticky;
+  top: 0;
+  z-index: 30;
+}
+
+/* KPI Cards (Vault Style) */
+.kpi-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: 20px;
+  padding: 1.35rem 1.5rem;
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.2s ease, border-color 0.2s ease;
+}
+
+.kpi-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+.kpi-card-dark {
+  background: #181c26;
+  border: 1px solid #2b3245;
+}
+
+.kpi-icon-badge {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Glass Data Cards */
+.data-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: 24px;
+  padding: 1.5rem;
+  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.4);
+}
+
+/* Custom Status Badges */
+.badge-status {
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.badge-green {
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.badge-yellow {
+  background: rgba(245, 158, 11, 0.15);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.badge-red {
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.badge-blue {
+  background: rgba(56, 189, 248, 0.15);
+  color: #38bdf8;
+  border: 1px solid rgba(56, 189, 248, 0.3);
+}
+
+.badge-lime {
+  background: rgba(212, 249, 51, 0.15);
+  color: var(--accent-lime);
+  border: 1px solid rgba(212, 249, 51, 0.3);
+}
+
+/* Tables */
+.custom-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.custom-table th {
+  background: #11141c;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0.9rem 1.15rem;
+  border-bottom: 1px solid var(--border-color);
+  text-align: left;
+}
+
+.custom-table td {
+  padding: 1rem 1.15rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  font-size: 0.875rem;
+  color: #e2e8f0;
+}
+
+.custom-table tbody tr {
+  transition: background-color 0.15s ease;
+}
+
+.custom-table tbody tr:hover {
+  background-color: rgba(255, 255, 255, 0.03);
+}
+
+/* --------------------------------------------------------------------------
+   E-SIGNATURE CANVAS (3-TIER APPROVAL)
+   -------------------------------------------------------------------------- */
+.signature-pad-container {
+  background: #ffffff;
+  border-radius: 16px;
+  overflow: hidden;
+  border: 2px dashed #cbd5e1;
+  position: relative;
+  touch-action: none;
+}
+
+.signature-canvas {
+  width: 100%;
+  height: 180px;
+  display: block;
+  cursor: crosshair;
+  background-color: #ffffff;
+}
+
+/* --------------------------------------------------------------------------
+   PRINT STYLES FOR REGULATORY REPORTS (PERMEN LHK NO. 6/2021)
+   -------------------------------------------------------------------------- */
+@media print {
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    font-size: 11pt;
+  }
+
+  .no-print, .sidebar, .topbar, .btn-primary-pill, .btn-lime-pill, .modal-backdrop {
+    display: none !important;
+  }
+
+  .print-only {
+    display: block !important;
+  }
+
+  .app-layout {
+    display: block !important;
+  }
+
+  .main-content {
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .regulatory-header {
+    border-bottom: 2px solid #000;
+    padding-bottom: 12px;
+    margin-bottom: 20px;
+  }
+
+  .regulatory-table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+  }
+
+  .regulatory-table th, .regulatory-table td {
+    border: 1px solid #000 !important;
+    color: #000 !important;
+    padding: 6px 8px !important;
+  }
+
+  .signature-stamp-box {
+    border: 1px solid #000;
+    padding: 10px;
+    text-align: center;
+    min-height: 120px;
+  }
+}
