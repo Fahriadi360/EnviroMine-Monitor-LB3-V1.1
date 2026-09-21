@@ -34,6 +34,21 @@ const BULAN_NAMA = [
   'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
 ];
 
+// Helper: Memastikan URL TTD (khususnya data SVG) aman dari tanda kutip mentah yang merusak atribut HTML
+function safeSignatureUrl(dataUrl) {
+  if (!dataUrl) return '';
+  if (typeof dataUrl !== 'string') return '';
+  if (dataUrl.startsWith('data:image/svg+xml')) {
+    if (dataUrl.includes('<svg') || dataUrl.includes('"')) {
+      const match = dataUrl.match(/<svg[\s\S]*<\/svg>/i);
+      if (match) {
+        return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(match[0]);
+      }
+    }
+  }
+  return dataUrl;
+}
+
 // ==========================================================================
 // 1. INITIALIZATION & DATABASE SEEDING
 // ==========================================================================
@@ -43,6 +58,16 @@ document.addEventListener('DOMContentLoaded', () => {
   checkAuthSession();
   updateGasStatusBadge();
   setupGlobalShortcuts();
+
+  // Resize listener untuk mobile responsiveness
+  window.addEventListener('resize', () => {
+    if (window.innerWidth > 768) {
+      closeMobileSidebar();
+    }
+    if (STATE.activeView === 'ttd-online' && typeof initStudioCanvas === 'function') {
+      initStudioCanvas();
+    }
+  });
 });
 
 function initLocalDatabase() {
@@ -210,14 +235,40 @@ function initLocalDatabase() {
         dataD: '0.000',
         kinerja: '100.00%',
         status: 'Menunggu Pengesahan KTT',
-        ttdOperator: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="120" height="50"><text x="10" y="32" font-family="cursive" font-size="20" fill="black">Operator</text></svg>',
-        ttdPJ: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="120" height="50"><text x="10" y="32" font-family="cursive" font-size="20" fill="black">Hermanto</text></svg>',
+        ttdOperator: 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="140" height="50" viewBox="0 0 140 50"><text x="10" y="34" font-family="Brush Script MT, cursive, sans-serif" font-size="24" font-weight="bold" fill="#0f172a">Operator</text></svg>'),
+        ttdPJ: 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="140" height="50" viewBox="0 0 140 50"><text x="10" y="34" font-family="Brush Script MT, cursive, sans-serif" font-size="24" font-weight="bold" fill="#0f172a">Hermanto</text></svg>'),
         ttdKTT: '',
         createdAt: '2026-09-15'
       }
     ];
     localStorage.setItem('db_neraca', JSON.stringify(sampleNeraca));
   }
+
+  // Migrasi otomatis data neraca lama agar tidak bocor akibat tanda kutip SVG
+  try {
+    const rawNeraca = localStorage.getItem('db_neraca');
+    if (rawNeraca) {
+      const parsedNeraca = JSON.parse(rawNeraca);
+      let needsUpdate = false;
+      parsedNeraca.forEach(item => {
+        if (item.ttdOperator && (item.ttdOperator.includes('<svg') || item.ttdOperator.includes('"'))) {
+          item.ttdOperator = safeSignatureUrl(item.ttdOperator);
+          needsUpdate = true;
+        }
+        if (item.ttdPJ && (item.ttdPJ.includes('<svg') || item.ttdPJ.includes('"'))) {
+          item.ttdPJ = safeSignatureUrl(item.ttdPJ);
+          needsUpdate = true;
+        }
+        if (item.ttdKTT && (item.ttdKTT.includes('<svg') || item.ttdKTT.includes('"'))) {
+          item.ttdKTT = safeSignatureUrl(item.ttdKTT);
+          needsUpdate = true;
+        }
+      });
+      if (needsUpdate) {
+        localStorage.setItem('db_neraca', JSON.stringify(parsedNeraca));
+      }
+    }
+  } catch(e) {}
 
   // 9. Audit Logs
   if (!localStorage.getItem('db_audit')) {
@@ -561,6 +612,9 @@ function handleSaveUserProfile(e) {
 // 3. NAVIGATION & ROUTING
 // ==========================================================================
 function navigateTo(viewName) {
+  // Tutup drawer sidebar mobile jika sedang terbuka
+  closeMobileSidebar();
+
   // Blokir akses role Operator ke users & settings (Revisi #5)
   if (STATE.currentUser && STATE.currentUser.role === 'Operator') {
     if (viewName === 'users' || viewName === 'settings') {
@@ -630,6 +684,28 @@ function navigateTo(viewName) {
   }
 
   lucide.createIcons();
+}
+
+function toggleMobileSidebar() {
+  const sidebar = document.getElementById('sidebar');
+  const backdrop = document.getElementById('sidebarBackdrop');
+  if (!sidebar) return;
+  const isOpen = sidebar.classList.contains('mobile-open');
+  if (isOpen) {
+    closeMobileSidebar();
+  } else {
+    sidebar.classList.add('mobile-open');
+    if (backdrop) backdrop.classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+  }
+}
+
+function closeMobileSidebar() {
+  const sidebar = document.getElementById('sidebar');
+  const backdrop = document.getElementById('sidebarBackdrop');
+  if (sidebar) sidebar.classList.remove('mobile-open');
+  if (backdrop) backdrop.classList.add('hidden');
+  document.body.style.overflow = '';
 }
 
 function toggleSidebarCollapse() {
@@ -1803,7 +1879,7 @@ function renderNeraca(filteredData = null) {
           <span class="badge-status ${n.status === 'Final' ? 'badge-green' : 'badge-yellow'} font-bold">
             ${n.status}
           </span>
-          <button onclick="printOfficialNeracaPortrait('${n.id}')" class="btn-primary-pill !w-auto !py-1.5 !px-3 text-xs bg-slate-800">
+          <button onclick="openModalPengaturanNeraca('${n.id}')" class="btn-primary-pill !w-auto !py-1.5 !px-3 text-xs bg-slate-800 hover:bg-slate-700">
             <i data-lucide="printer" class="w-3.5 h-3.5"></i> Cetak Neraca (Portrait)
           </button>
         </div>
@@ -1846,8 +1922,8 @@ function renderNeraca(filteredData = null) {
           <div class="p-4 rounded-2xl bg-slate-900/80 border ${n.ttdOperator ? 'border-emerald-500/40' : 'border-slate-800'} text-center space-y-2">
             <span class="text-[10px] uppercase font-bold text-slate-400">1. Disusun Oleh</span>
             <p class="text-xs font-bold text-white">Operator TPS LB3</p>
-            <div class="h-20 flex items-center justify-center border border-dashed border-slate-800 rounded-xl bg-slate-950/60 p-1">
-              ${n.ttdOperator ? `<img src="${n.ttdOperator}" class="max-h-16 mx-auto">` : `<span class="text-[11px] text-slate-600 italic">Belum diparaf</span>`}
+            <div class="h-20 flex items-center justify-center border border-dashed border-slate-800 rounded-xl bg-slate-950/60 p-1 overflow-hidden">
+              ${n.ttdOperator ? `<img src="${safeSignatureUrl(n.ttdOperator)}" class="max-h-16 mx-auto object-contain">` : `<span class="text-[11px] text-slate-600 italic">Belum diparaf</span>`}
             </div>
             ${!n.ttdOperator ? `
               <button onclick="openSignatureModal('${n.id}', 'Operator')" class="btn-primary-pill !w-full !py-1.5 text-xs">
@@ -1860,8 +1936,8 @@ function renderNeraca(filteredData = null) {
           <div class="p-4 rounded-2xl bg-slate-900/80 border ${n.ttdPJ ? 'border-emerald-500/40' : 'border-slate-800'} text-center space-y-2">
             <span class="text-[10px] uppercase font-bold text-slate-400">2. Diperiksa Oleh</span>
             <p class="text-xs font-bold text-white">Penanggung Jawab TPS</p>
-            <div class="h-20 flex items-center justify-center border border-dashed border-slate-800 rounded-xl bg-slate-950/60 p-1">
-              ${n.ttdPJ ? `<img src="${n.ttdPJ}" class="max-h-16 mx-auto">` : `<span class="text-[11px] text-slate-600 italic">Menunggu Operator</span>`}
+            <div class="h-20 flex items-center justify-center border border-dashed border-slate-800 rounded-xl bg-slate-950/60 p-1 overflow-hidden">
+              ${n.ttdPJ ? `<img src="${safeSignatureUrl(n.ttdPJ)}" class="max-h-16 mx-auto object-contain">` : `<span class="text-[11px] text-slate-600 italic">Menunggu Operator</span>`}
             </div>
             ${!n.ttdPJ && n.ttdOperator ? `
               <button onclick="openSignatureModal('${n.id}', 'Penanggung Jawab')" class="btn-lime-pill !w-full !py-1.5 text-xs justify-center">
@@ -1874,8 +1950,8 @@ function renderNeraca(filteredData = null) {
           <div class="p-4 rounded-2xl bg-slate-900/80 border ${n.ttdKTT ? 'border-emerald-500/40' : 'border-slate-800'} text-center space-y-2">
             <span class="text-[10px] uppercase font-bold text-slate-400">3. Disahkan Oleh</span>
             <p class="text-xs font-bold text-white">Kepala Teknik Tambang (KTT)</p>
-            <div class="h-20 flex items-center justify-center border border-dashed border-slate-800 rounded-xl bg-slate-950/60 p-1">
-              ${n.ttdKTT ? `<img src="${n.ttdKTT}" class="max-h-16 mx-auto">` : `<span class="text-[11px] text-slate-600 italic">Menunggu PJ</span>`}
+            <div class="h-20 flex items-center justify-center border border-dashed border-slate-800 rounded-xl bg-slate-950/60 p-1 overflow-hidden">
+              ${n.ttdKTT ? `<img src="${safeSignatureUrl(n.ttdKTT)}" class="max-h-16 mx-auto object-contain">` : `<span class="text-[11px] text-slate-600 italic">Menunggu PJ</span>`}
             </div>
             ${!n.ttdKTT && n.ttdPJ ? `
               <button onclick="openSignatureModal('${n.id}', 'Manajemen / KTT')" class="btn-primary-pill !w-full !py-1.5 text-xs bg-purple-600 hover:bg-purple-500">
@@ -1993,13 +2069,13 @@ function printOfficialNeracaPortrait(neracaId) {
   document.getElementById('printNeracaKinerjaRumus').textContent = n.kinerja;
 
   const boxOp = document.getElementById('printNeracaTtdOp');
-  boxOp.innerHTML = n.ttdOperator ? `<img src="${n.ttdOperator}" style="max-height: 45px;">` : `<span style="font-size: 8pt; color: #888;">(Belum Paraf)</span>`;
+  boxOp.innerHTML = n.ttdOperator ? `<img src="${safeSignatureUrl(n.ttdOperator)}" style="max-height: 45px;">` : `<span style="font-size: 8pt; color: #888;">(Belum Paraf)</span>`;
 
   const boxPJ = document.getElementById('printNeracaTtdPJ');
-  boxPJ.innerHTML = n.ttdPJ ? `<img src="${n.ttdPJ}" style="max-height: 45px;">` : `<span style="font-size: 8pt; color: #888;">(Belum Disetujui)</span>`;
+  boxPJ.innerHTML = n.ttdPJ ? `<img src="${safeSignatureUrl(n.ttdPJ)}" style="max-height: 45px;">` : `<span style="font-size: 8pt; color: #888;">(Belum Disetujui)</span>`;
 
   const boxKTT = document.getElementById('printNeracaTtdKTT');
-  boxKTT.innerHTML = n.ttdKTT ? `<img src="${n.ttdKTT}" style="max-height: 45px;">` : `<span style="font-size: 8pt; color: #888;">(Belum Disahkan)</span>`;
+  boxKTT.innerHTML = n.ttdKTT ? `<img src="${safeSignatureUrl(n.ttdKTT)}" style="max-height: 45px;">` : `<span style="font-size: 8pt; color: #888;">(Belum Disahkan)</span>`;
 
   document.body.className = 'print-portrait';
   const printEl = document.getElementById('printNeracaPortraitContainer');
@@ -2010,6 +2086,385 @@ function printOfficialNeracaPortrait(neracaId) {
     printEl.classList.remove('active-print');
     document.body.className = '';
   }, 200);
+}
+
+// --- POP-UP PENGATURAN, MANIFES, PREVIEW, & ALUR PENGESAHAN NERACA (Sesuai Permintaan #1) ---
+function openModalPengaturanNeraca(neracaId) {
+  const neracaList = JSON.parse(localStorage.getItem('db_neraca') || '[]');
+  const n = neracaList.find(item => item.id === neracaId);
+  if (!n) {
+    showToast('Dokumen Neraca tidak ditemukan.', 'error');
+    return;
+  }
+
+  STATE.activeNeracaForModal = neracaId;
+  document.getElementById('pengaturanNeracaId').value = neracaId;
+
+  // Set nomor dokumen
+  const autoNo = n.nomorDokumen || generateNomorNeraca(n.bulan || 9, n.tahun || 2026);
+  document.getElementById('pengaturanNeracaNomorDoc').value = autoNo;
+
+  // Set bulan & tahun
+  const m = n.bulan || 9;
+  const y = n.tahun || 2026;
+  document.getElementById('pengaturanNeracaBulanSelect').value = m;
+  document.getElementById('pengaturanNeracaTahunInput').value = y;
+
+  // Set dokumen kontrol
+  const isMelampirkan = !n.dokumenKontrol || n.dokumenKontrol.toLowerCase().includes('melampirkan');
+  const radios = document.getElementsByName('pengaturanNeracaDocKontrol');
+  for (let r of radios) {
+    if (r.value === 'Melampirkan Manifes') r.checked = isMelampirkan;
+    if (r.value === 'Tidak Melampirkan Manifes') r.checked = !isMelampirkan;
+  }
+  toggleUploadManifesArea();
+
+  // Set nomor manifes
+  document.getElementById('pengaturanNomorManifes').value = n.nomorManifes || '';
+
+  // Set file manifes preview
+  STATE.tempManifesFile = n.fileManifes ? { name: n.fileManifesName || 'Dokumen_Manifes.pdf', dataUrl: n.fileManifes } : null;
+  const badge = document.getElementById('pengaturanManifesFileBadge');
+  const nameSpan = document.getElementById('pengaturanManifesFileName');
+  if (STATE.tempManifesFile) {
+    badge.classList.remove('hidden');
+    nameSpan.textContent = STATE.tempManifesFile.name;
+  } else {
+    badge.classList.add('hidden');
+  }
+
+  // Update tombol Kirim/Sahkan berdasarkan role pengguna aktif
+  const role = STATE.currentUser ? STATE.currentUser.role : 'Operator';
+  const btnKirim = document.getElementById('btnKirimSahkanNeraca');
+  const textKirim = document.getElementById('textKirimSahkan');
+  const iconKirim = document.getElementById('iconKirimSahkan');
+
+  if (role === 'Operator') {
+    textKirim.textContent = 'Kirim ke Penanggung Jawab';
+    iconKirim.setAttribute('data-lucide', 'send');
+    btnKirim.className = 'btn-lime-pill flex items-center justify-center gap-1.5';
+  } else if (role === 'Penanggung Jawab') {
+    textKirim.textContent = 'Kirim ke KTT';
+    iconKirim.setAttribute('data-lucide', 'send');
+    btnKirim.className = 'btn-lime-pill flex items-center justify-center gap-1.5';
+  } else if (role === 'Manajemen / KTT' || role === 'KTT') {
+    textKirim.textContent = 'Sahkan Dokumen (Final)';
+    iconKirim.setAttribute('data-lucide', 'check-check');
+    btnKirim.className = 'btn-primary-pill !bg-purple-600 hover:!bg-purple-500 flex items-center justify-center gap-1.5';
+  } else {
+    textKirim.textContent = 'Simpan Pengaturan';
+    iconKirim.setAttribute('data-lucide', 'save');
+    btnKirim.className = 'btn-lime-pill flex items-center justify-center gap-1.5';
+  }
+
+  openModal('modalPengaturanCetakNeraca');
+  lucide.createIcons();
+}
+
+function regeneratePengaturanNomorNeraca() {
+  const m = document.getElementById('pengaturanNeracaBulanSelect').value;
+  const y = document.getElementById('pengaturanNeracaTahunInput').value || '2026';
+  const no = generateNomorNeraca(m, y);
+  document.getElementById('pengaturanNeracaNomorDoc').value = no;
+  showToast('Nomor dokumen neraca diperbarui.', 'info');
+}
+
+function updatePengaturanNomorRomawi() {
+  const m = document.getElementById('pengaturanNeracaBulanSelect').value;
+  const y = document.getElementById('pengaturanNeracaTahunInput').value || '2026';
+  const currNo = document.getElementById('pengaturanNeracaNomorDoc').value;
+  const roman = getRomanMonth(m);
+  const parts = currNo.split('/');
+  if (parts.length >= 5) {
+    parts[3] = roman;
+    parts[4] = y;
+    document.getElementById('pengaturanNeracaNomorDoc').value = parts.join('/');
+  } else {
+    document.getElementById('pengaturanNeracaNomorDoc').value = generateNomorNeraca(m, y);
+  }
+}
+
+function toggleUploadManifesArea() {
+  const radios = document.getElementsByName('pengaturanNeracaDocKontrol');
+  let val = 'Melampirkan Manifes';
+  for (let r of radios) {
+    if (r.checked) val = r.value;
+  }
+  const area = document.getElementById('areaUploadManifesNeraca');
+  if (val === 'Melampirkan Manifes') {
+    area.classList.remove('hidden');
+  } else {
+    area.classList.add('hidden');
+  }
+}
+
+function handleUploadManifesFile(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    STATE.tempManifesFile = {
+      name: file.name,
+      dataUrl: e.target.result,
+      size: (file.size / 1024).toFixed(1) + ' KB'
+    };
+    const badge = document.getElementById('pengaturanManifesFileBadge');
+    const nameSpan = document.getElementById('pengaturanManifesFileName');
+    badge.classList.remove('hidden');
+    nameSpan.textContent = `${file.name} (${STATE.tempManifesFile.size})`;
+    showToast('File bukti manifes berhasil diunggah.', 'success');
+  };
+  reader.readAsDataURL(file);
+}
+
+function clearUploadedManifesFile() {
+  STATE.tempManifesFile = null;
+  const fileInput = document.getElementById('pengaturanUploadManifesFile');
+  if (fileInput) fileInput.value = '';
+  document.getElementById('pengaturanManifesFileBadge').classList.add('hidden');
+  showToast('File bukti manifes dihapus.', 'info');
+}
+
+function saveNeracaSettingsFromModal(neracaId) {
+  const neracaList = JSON.parse(localStorage.getItem('db_neraca') || '[]');
+  const n = neracaList.find(item => item.id === neracaId);
+  if (!n) return null;
+
+  const noDoc = document.getElementById('pengaturanNeracaNomorDoc').value.trim();
+  const m = parseInt(document.getElementById('pengaturanNeracaBulanSelect').value);
+  const y = document.getElementById('pengaturanNeracaTahunInput').value.trim();
+  
+  const radios = document.getElementsByName('pengaturanNeracaDocKontrol');
+  let docKontrol = 'Melampirkan Manifes';
+  for (let r of radios) {
+    if (r.checked) docKontrol = r.value;
+  }
+
+  const noManifes = document.getElementById('pengaturanNomorManifes').value.trim();
+
+  n.nomorDokumen = noDoc;
+  n.bulan = m;
+  n.tahun = y;
+  n.periode = `${BULAN_NAMA[m - 1]} ${y}`;
+  n.dokumenKontrol = docKontrol === 'Melampirkan Manifes' ? (noManifes ? `Melampirkan Manifes (${noManifes})` : 'Melampirkan Manifes') : 'Tidak Melampirkan Manifes';
+  n.nomorManifes = noManifes;
+
+  if (STATE.tempManifesFile) {
+    n.fileManifes = STATE.tempManifesFile.dataUrl;
+    n.fileManifesName = STATE.tempManifesFile.name;
+  } else if (docKontrol === 'Tidak Melampirkan Manifes') {
+    delete n.fileManifes;
+    delete n.fileManifesName;
+  }
+
+  localStorage.setItem('db_neraca', JSON.stringify(neracaList));
+  return n;
+}
+
+function printNeracaFromModal() {
+  const neracaId = document.getElementById('pengaturanNeracaId').value;
+  saveNeracaSettingsFromModal(neracaId);
+  renderNeraca();
+  printOfficialNeracaPortrait(neracaId);
+}
+
+function previewNeracaFromModal() {
+  const neracaId = document.getElementById('pengaturanNeracaId').value;
+  const n = saveNeracaSettingsFromModal(neracaId);
+  if (!n) return;
+  renderNeraca();
+
+  const cfg = JSON.parse(localStorage.getItem('db_settings') || '{}');
+  const masuk = JSON.parse(localStorage.getItem('db_limbah_masuk') || '[]');
+
+  // Bangun data tabel jenis awal limbah A
+  const rintekMap = {};
+  masuk.forEach(m => {
+    rintekMap[m.namaLimbah] = (rintekMap[m.namaLimbah] || 0) + (parseFloat(m.jumlah) || 0);
+  });
+
+  let rowsAHtml = '';
+  let counter = 1;
+  for (let [nama, kg] of Object.entries(rintekMap)) {
+    const ton = (kg / 1000).toFixed(3);
+    rowsAHtml += `
+      <tr>
+        <td style="border: 1px solid #000; padding: 4px; text-align: center;">${counter++}</td>
+        <td style="border: 1px solid #000; padding: 4px;">${nama}</td>
+        <td style="border: 1px solid #000; padding: 4px; text-align: right; font-weight: bold;">${ton}</td>
+        <td colspan="3" style="border: 1px solid #000; padding: 4px;">Penyimpanan di TPS LB3 01</td>
+      </tr>
+    `;
+  }
+
+  const perlakuanList = [
+    { no: '1', nama: 'DISIMPAN', jumlah: n.dataB.disimpan, jenis: 'Limbah B3 di TPS 01', izin: 'ADA' },
+    { no: '2', nama: 'DIMANFAATKAN', jumlah: n.dataB.dimanfaatkan, jenis: '-', izin: '-' },
+    { no: '3', nama: 'DIOLAH', jumlah: n.dataB.diolah, jenis: '-', izin: '-' },
+    { no: '4', nama: 'DITIMBUN', jumlah: n.dataB.ditimbun, jenis: '-', izin: '-' },
+    { no: '5', nama: 'DISERAHKAN KE PIHAK KETIGA', jumlah: n.dataB.diserahkanPihakKetiga, jenis: 'PT. Berkat Jaya Sukses', izin: 'ADA' },
+    { no: '6', nama: 'EKSPOR', jumlah: n.dataB.ekspor, jenis: '-', izin: '-' },
+    { no: '7', nama: 'PERLAKUAN LAINNYA', jumlah: n.dataB.lainnya, jenis: '-', izin: '-' }
+  ];
+
+  let totalB = 0;
+  let rowsBHtml = '';
+  perlakuanList.forEach(p => {
+    totalB += parseFloat(p.jumlah);
+    rowsBHtml += `
+      <tr>
+        <td style="border: 1px solid #000; padding: 4px; text-align: center;">${p.no}</td>
+        <td style="border: 1px solid #000; padding: 4px;"><strong>${p.nama}</strong></td>
+        <td style="border: 1px solid #000; padding: 4px; text-align: right; font-weight: bold;">${p.jumlah}</td>
+        <td style="border: 1px solid #000; padding: 4px;">${p.jenis}</td>
+        <td style="border: 1px solid #000; padding: 4px; text-align: center;">${p.izin === 'ADA' ? '✓' : '-'}</td>
+        <td style="border: 1px solid #000; padding: 4px; text-align: center;">${p.izin === 'TIDAK ADA' ? '✓' : '-'}</td>
+      </tr>
+    `;
+  });
+
+  const sigOp = safeSignatureUrl(n.ttdOperator);
+  const sigPJ = safeSignatureUrl(n.ttdPJ);
+  const sigKTT = safeSignatureUrl(n.ttdKTT);
+
+  const previewEl = document.getElementById('previewPaperNeraca');
+  previewEl.innerHTML = `
+    <div style="display: flex; align-items: center; gap: 1rem; border-bottom: 3px double #000; padding-bottom: 8px; margin-bottom: 12px; text-align: left;">
+      ${cfg.logoBase64 ? `<img src="${cfg.logoBase64}" style="width: 65px; height: 65px; object-fit: contain;">` : ''}
+      <div style="flex: 1; text-align: left;">
+        <h2 style="font-size: 12pt; font-weight: 900; text-transform: uppercase; margin: 0; color: #000;">${cfg.namaPerusahaan || 'PT. ETAM MANUNGGAL JAYA'}</h2>
+        <p style="font-size: 8pt; margin: 2px 0; color: #333;">${cfg.alamatKantor || 'Jalan S. Parman No. 6, Kota Samarinda'}</p>
+        <p style="font-size: 8pt; margin: 0; color: #333;">Telp: ${cfg.telpPerusahaan || '-'} &bull; Email: ${cfg.emailPerusahaan || '-'}</p>
+      </div>
+    </div>
+
+    <table style="width: 100%; font-size: 8.5pt; margin-bottom: 10px; border: none; text-align: left;">
+      <tr><td style="width: 25%; font-weight: bold;">Nama Perusahaan</td><td>: ${n.namaPerusahaan || cfg.namaPerusahaan}</td></tr>
+      <tr><td style="font-weight: bold;">Bidang Usaha</td><td>: ${n.bidangUsaha || cfg.bidangUsaha}</td></tr>
+      <tr><td style="font-weight: bold;">Nomor Dokumen</td><td>: <span style="font-family: monospace; font-weight: bold; color: #0284c7;">${n.nomorDokumen || n.id}</span></td></tr>
+      <tr><td style="font-weight: bold;">Periode Waktu</td><td>: ${n.periode}</td></tr>
+      <tr><td style="font-weight: bold;">Dokumen Kontrol</td><td>: <strong>${n.dokumenKontrol || 'Melampirkan Manifes'}</strong></td></tr>
+    </table>
+
+    <table style="width: 100%; border-collapse: collapse; font-size: 8pt; margin-bottom: 8px;">
+      <thead>
+        <tr style="background: #e2e8f0;">
+          <th style="border: 1px solid #000; padding: 4px; width: 4%;">I</th>
+          <th style="border: 1px solid #000; padding: 4px; width: 36%;">JENIS AWAL LIMBAH B3</th>
+          <th style="border: 1px solid #000; padding: 4px; width: 15%;">JUMLAH (Ton)</th>
+          <th colspan="3" style="border: 1px solid #000; padding: 4px;">CATATAN</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rowsAHtml}
+        <tr style="font-weight: bold; background: #f8fafc;">
+          <td colspan="2" style="border: 1px solid #000; padding: 4px; text-align: right;">TOTAL LIMBAH B3 DIHASILKAN</td>
+          <td style="border: 1px solid #000; padding: 4px; text-align: right; color: #0284c7;">A (+) ${n.dataA}</td>
+          <td colspan="3" style="border: 1px solid #000; padding: 4px;"></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <table style="width: 100%; border-collapse: collapse; font-size: 8pt; margin-bottom: 8px;">
+      <thead>
+        <tr style="background: #e2e8f0;">
+          <th rowspan="2" style="border: 1px solid #000; padding: 4px; width: 4%;">II</th>
+          <th rowspan="2" style="border: 1px solid #000; padding: 4px; width: 36%;">PERLAKUAN</th>
+          <th rowspan="2" style="border: 1px solid #000; padding: 4px; width: 15%;">JUMLAH (Ton)</th>
+          <th rowspan="2" style="border: 1px solid #000; padding: 4px;">JENIS LIMBAH B3</th>
+          <th colspan="2" style="border: 1px solid #000; padding: 4px;">PERSETUJUAN TEKNIS</th>
+        </tr>
+        <tr style="background: #e2e8f0;">
+          <th style="border: 1px solid #000; padding: 3px;">ADA</th>
+          <th style="border: 1px solid #000; padding: 3px;">TIDAK ADA</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rowsBHtml}
+        <tr style="font-weight: bold; background: #f8fafc;">
+          <td colspan="2" style="border: 1px solid #000; padding: 4px; text-align: right;">TOTAL LIMBAH B3 DIKELOLA</td>
+          <td style="border: 1px solid #000; padding: 4px; text-align: right; color: #16a34a;">B (-) ${totalB.toFixed(3)}</td>
+          <td colspan="3" style="border: 1px solid #000; padding: 4px;"></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div style="margin-top: 15px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; text-align: center; font-size: 8pt;">
+      <div style="border: 1px solid #000; padding: 8px; border-radius: 4px;">
+        <p style="font-weight: bold; margin-bottom: 4px;">1. Disusun Oleh</p>
+        <p style="font-size: 7.5pt; color: #555;">Operator TPS LB3</p>
+        <div style="height: 50px; display: flex; align-items: center; justify-content: center;">
+          ${sigOp ? `<img src="${sigOp}" style="max-height: 42px;">` : '<span style="color: #999;">(Belum Paraf)</span>'}
+        </div>
+        <p style="font-weight: bold; margin-top: 4px;">( Operator Lapangan )</p>
+      </div>
+
+      <div style="border: 1px solid #000; padding: 8px; border-radius: 4px;">
+        <p style="font-weight: bold; margin-bottom: 4px;">2. Diperiksa Oleh</p>
+        <p style="font-size: 7.5pt; color: #555;">Penanggung Jawab TPS</p>
+        <div style="height: 50px; display: flex; align-items: center; justify-content: center;">
+          ${sigPJ ? `<img src="${sigPJ}" style="max-height: 42px;">` : '<span style="color: #999;">(Belum Disetujui)</span>'}
+        </div>
+        <p style="font-weight: bold; margin-top: 4px;">( Hermanto )</p>
+      </div>
+
+      <div style="border: 1px solid #000; padding: 8px; border-radius: 4px;">
+        <p style="font-weight: bold; margin-bottom: 4px;">3. Disahkan Oleh</p>
+        <p style="font-size: 7.5pt; color: #555;">Kepala Teknik Tambang (KTT)</p>
+        <div style="height: 50px; display: flex; align-items: center; justify-content: center;">
+          ${sigKTT ? `<img src="${sigKTT}" style="max-height: 42px;">` : '<span style="color: #999;">(Belum Disahkan)</span>'}
+        </div>
+        <p style="font-weight: bold; margin-top: 4px;">( Ronald Damopoli )</p>
+      </div>
+    </div>
+  `;
+
+  openModal('modalPreviewNeraca');
+}
+
+function submitWorkflowNeracaFromModal() {
+  const neracaId = document.getElementById('pengaturanNeracaId').value;
+  const neracaList = JSON.parse(localStorage.getItem('db_neraca') || '[]');
+  const item = neracaList.find(n => n.id === neracaId);
+  if (!item) return;
+
+  saveNeracaSettingsFromModal(neracaId);
+
+  const role = STATE.currentUser ? STATE.currentUser.role : 'Operator';
+  const savedSig = getSavedUserSignature();
+
+  if (role === 'Operator') {
+    if (!item.ttdOperator) {
+      item.ttdOperator = savedSig || ('data:image/svg+xml;charset=utf-8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="140" height="50" viewBox="0 0 140 50"><text x="10" y="34" font-family="Brush Script MT, cursive, sans-serif" font-size="24" font-weight="bold" fill="#0f172a">Operator</text></svg>'));
+    }
+    item.status = 'Menunggu Approval Penanggung Jawab';
+    localStorage.setItem('db_neraca', JSON.stringify(neracaList));
+    addAuditLog(STATE.currentUser ? STATE.currentUser.nama : 'Operator', 'SUBMIT_NERACA_PJ', `Mengirim Neraca ${item.nomorDokumen || neracaId} ke Penanggung Jawab TPS`);
+    showToast(`Dokumen Neraca ${item.nomorDokumen || neracaId} berhasil dikirim ke Penanggung Jawab TPS!`, 'success');
+  } else if (role === 'Penanggung Jawab') {
+    if (!item.ttdPJ) {
+      item.ttdPJ = savedSig || ('data:image/svg+xml;charset=utf-8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="140" height="50" viewBox="0 0 140 50"><text x="10" y="34" font-family="Brush Script MT, cursive, sans-serif" font-size="24" font-weight="bold" fill="#0f172a">Hermanto</text></svg>'));
+    }
+    item.status = 'Menunggu Pengesahan KTT';
+    localStorage.setItem('db_neraca', JSON.stringify(neracaList));
+    addAuditLog(STATE.currentUser ? STATE.currentUser.nama : 'Penanggung Jawab', 'SUBMIT_NERACA_KTT', `Mengirim Neraca ${item.nomorDokumen || neracaId} ke KTT`);
+    showToast(`Dokumen Neraca ${item.nomorDokumen || neracaId} berhasil disetujui & diteruskan ke KTT!`, 'success');
+  } else if (role === 'Manajemen / KTT' || role === 'KTT') {
+    if (!item.ttdKTT) {
+      item.ttdKTT = savedSig || ('data:image/svg+xml;charset=utf-8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="140" height="50" viewBox="0 0 140 50"><text x="10" y="34" font-family="Brush Script MT, cursive, sans-serif" font-size="24" font-weight="bold" fill="#0f172a">Ronald Damopoli</text></svg>'));
+    }
+    item.status = 'Final';
+    localStorage.setItem('db_neraca', JSON.stringify(neracaList));
+    addAuditLog(STATE.currentUser ? STATE.currentUser.nama : 'KTT', 'APPROVE_FINAL_KTT', `Mengesahkan Neraca ${item.nomorDokumen || neracaId} (Status Final)`);
+    showToast(`Dokumen Neraca ${item.nomorDokumen || neracaId} telah RESMI DISAHKAN oleh KTT (Final)!`, 'success');
+  } else {
+    // Admin HSE
+    localStorage.setItem('db_neraca', JSON.stringify(neracaList));
+    showToast('Pengaturan Dokumen Neraca berhasil disimpan.', 'success');
+  }
+
+  closeModal('modalPengaturanCetakNeraca');
+  renderNeraca();
 }
 
 // --- 4.8 STUDIO TANDA TANGAN ONLINE (Sesuai Permintaan #1) ---

@@ -106,7 +106,32 @@
         </button>
       </form>
 
-            <!-- Legal footer -->
+      <!-- Quick Demo Switcher (4 Roles in PRD) -->
+      <div class="mt-8 pt-6 border-t border-slate-800/80">
+        <p class="text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-3 text-center">
+          Pilih Cepat Role Pengguna (Demo Akses)
+        </p>
+        <div class="grid grid-cols-2 gap-2">
+          <button type="button" onclick="quickFillLogin('operator', 'operator123')" class="role-quick-btn flex items-center justify-between">
+            <span class="font-medium text-slate-200">1. Operator Lapangan</span>
+            <span class="text-[10px] text-emerald-400 font-mono">Input</span>
+          </button>
+          <button type="button" onclick="quickFillLogin('penanggung_jawab', 'pj12345')" class="role-quick-btn flex items-center justify-between">
+            <span class="font-medium text-slate-200">2. PJ TPS LB3</span>
+            <span class="text-[10px] text-vault-lime font-mono">Review</span>
+          </button>
+          <button type="button" onclick="quickFillLogin('admin_hse', 'admin123')" class="role-quick-btn flex items-center justify-between">
+            <span class="font-medium text-slate-200">3. Admin HSE</span>
+            <span class="text-[10px] text-sky-400 font-mono">Master</span>
+          </button>
+          <button type="button" onclick="quickFillLogin('ktt', 'ktt12345')" class="role-quick-btn flex items-center justify-between">
+            <span class="font-medium text-slate-200">4. Manajemen / KTT</span>
+            <span class="text-[10px] text-purple-400 font-mono">Final TTD</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Legal footer -->
       <div class="mt-6 text-center">
         <p id="authAddressDisplay" class="text-[11px] text-slate-500">
           TPS LB3 01 PT. Etam Manunggal Jaya &bull; Desa Batuah, Kutai Kartanegara
@@ -136,9 +161,14 @@
             <p id="sidebarCompanyDisplay" class="text-[10px] text-slate-400 truncate">PT. Etam Manunggal Jaya</p>
           </div>
         </div>
-        <button onclick="toggleSidebarCollapse()" class="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800">
-          <i data-lucide="panel-left-close" id="sidebarToggleIcon" class="w-4 h-4"></i>
-        </button>
+        <div class="flex items-center gap-1">
+          <button onclick="closeMobileSidebar()" class="md:hidden text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-slate-800" title="Tutup Menu">
+            <i data-lucide="x" class="w-5 h-5"></i>
+          </button>
+          <button onclick="toggleSidebarCollapse()" class="hidden md:block text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800" title="Kecilkan Sidebar">
+            <i data-lucide="panel-left-close" id="sidebarToggleIcon" class="w-4 h-4"></i>
+          </button>
+        </div>
       </div>
 
       <!-- Navigation Menu -->
@@ -235,13 +265,21 @@
       </div>
     </aside>
 
+    <!-- Backdrop Overlay for Mobile Sidebar Drawer -->
+    <div id="sidebarBackdrop" onclick="closeMobileSidebar()" class="fixed inset-0 bg-black/70 backdrop-blur-xs z-40 hidden transition-opacity" style="-webkit-tap-highlight-color: transparent;"></div>
+
     <!-- 2.2 MAIN CONTENT AREA -->
     <div class="flex-1 flex flex-col min-w-0 overflow-hidden">
 
       <!-- TOPBAR -->
       <header class="topbar">
-        <!-- Left: Search / TPS Info -->
-        <div class="flex items-center gap-4">
+        <!-- Left: Mobile Hamburger / Search / TPS Info -->
+        <div class="flex items-center gap-2.5 sm:gap-4">
+          <!-- Mobile Hamburger Button -->
+          <button id="mobileMenuBtn" onclick="toggleMobileSidebar()" class="md:hidden p-2 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800 border border-slate-700/70" title="Buka Menu Navigasi">
+            <i data-lucide="menu" class="w-5 h-5"></i>
+          </button>
+
           <div class="relative hidden md:block w-72">
             <i data-lucide="search" class="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2"></i>
             <input type="text" id="globalSearchInput" onkeyup="handleGlobalSearch(event)" placeholder="Cari limbah, kode, manifes... (Ctrl+K)" 
@@ -1424,6 +1462,158 @@
           <button type="submit" class="btn-lime-pill">Generate Dokumen Neraca</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- Modal 3.4.B: POP-UP PENGATURAN & PENGESAHAN CETAK NERACA PORTRAIT (Sesuai Permintaan #1) -->
+  <div id="modalPengaturanCetakNeraca" class="modal-backdrop fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 hidden">
+    <div class="bg-slate-900 border border-slate-700/80 rounded-3xl max-w-xl w-full p-5 sm:p-6 shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+        <div>
+          <h3 class="text-base sm:text-lg font-bold text-white flex items-center gap-2">
+            <i data-lucide="file-check" class="w-5 h-5 text-vault-lime"></i>
+            Pengaturan & Pengesahan Neraca Limbah B3
+          </h3>
+          <p class="text-xs text-slate-400">Konfigurasi dokumen, dokumen kontrol (manifes), serta cetak & alur pengesahan digital</p>
+        </div>
+        <button onclick="closeModal('modalPengaturanCetakNeraca')" class="text-slate-400 hover:text-white p-1 rounded-lg">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <form id="formPengaturanCetakNeraca" onsubmit="event.preventDefault()" class="space-y-4 text-xs">
+        <input type="hidden" id="pengaturanNeracaId">
+
+        <!-- 1. Nomor Dokumen Neraca (Generate Otomatis *no.neraca/PLB3/ENV-HSE/Bulan romawi/yyyy) -->
+        <div>
+          <div class="flex items-center justify-between mb-1">
+            <label class="font-semibold text-slate-300">Nomor Dokumen Neraca</label>
+            <button type="button" onclick="regeneratePengaturanNomorNeraca()" class="text-[11px] text-sky-400 hover:text-sky-300 flex items-center gap-1 font-medium" title="Sinkronkan nomor urut dan romawi">
+              <i data-lucide="refresh-cw" class="w-3 h-3"></i> Generate Ulang
+            </button>
+          </div>
+          <input type="text" id="pengaturanNeracaNomorDoc" class="auth-input !py-2.5 text-xs bg-slate-800 text-vault-lime font-mono font-bold tracking-wide">
+          <p class="text-[10px] text-slate-400 mt-1">Format: [No.Urut]/PLB3/ENV-HSE/[Bulan Romawi]/[Tahun]</p>
+        </div>
+
+        <!-- 2. Periode Waktu (Bulan dan Tahun) -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block font-semibold text-slate-300 mb-1">Bulan Periode</label>
+            <select id="pengaturanNeracaBulanSelect" onchange="updatePengaturanNomorRomawi()" class="auth-input !py-2.5 text-xs">
+              <option value="1">Januari</option>
+              <option value="2">Februari</option>
+              <option value="3">Maret</option>
+              <option value="4">April</option>
+              <option value="5">Mei</option>
+              <option value="6">Juni</option>
+              <option value="7">Juli</option>
+              <option value="8">Agustus</option>
+              <option value="9">September</option>
+              <option value="10">Oktober</option>
+              <option value="11">November</option>
+              <option value="12">Desember</option>
+            </select>
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-300 mb-1">Tahun Periode</label>
+            <input type="number" id="pengaturanNeracaTahunInput" value="2026" onchange="updatePengaturanNomorRomawi()" class="auth-input !py-2.5 text-xs font-mono">
+          </div>
+        </div>
+
+        <!-- 3. Dokumen Kontrol (Melampirkan Manifes / Upload Manifes) -->
+        <div class="p-3.5 rounded-2xl bg-slate-800/70 border border-slate-700/80 space-y-3">
+          <label class="block font-bold text-white text-xs">Dokumen Kontrol Pendukung:</label>
+          <div class="flex flex-wrap items-center gap-4">
+            <label class="flex items-center gap-2 text-emerald-400 cursor-pointer font-medium">
+              <input type="radio" name="pengaturanNeracaDocKontrol" value="Melampirkan Manifes" checked onchange="toggleUploadManifesArea()" class="text-emerald-500">
+              Melampirkan Manifes (Upload File)
+            </label>
+            <label class="flex items-center gap-2 text-slate-300 cursor-pointer font-medium">
+              <input type="radio" name="pengaturanNeracaDocKontrol" value="Tidak Melampirkan Manifes" onchange="toggleUploadManifesArea()" class="text-slate-500">
+              Tidak Melampirkan Manifes
+            </label>
+          </div>
+
+          <!-- Container Upload Manifes -->
+          <div id="areaUploadManifesNeraca" class="pt-2 border-t border-slate-700/60 space-y-2.5">
+            <div>
+              <label class="block text-[11px] font-semibold text-slate-300 mb-1">Nomor Festronik / Manifes / Surat Jalan</label>
+              <input type="text" id="pengaturanNomorManifes" placeholder="Contoh: KLHK-FES-2026-0901 / SJ-019" class="auth-input !py-2 text-xs">
+            </div>
+
+            <div>
+              <label class="block text-[11px] font-semibold text-slate-300 mb-1">File Bukti Manifes / Festronik (PDF atau Foto Gambar)</label>
+              <div class="flex items-center gap-2">
+                <input type="file" id="pengaturanUploadManifesFile" accept=".pdf,image/*" onchange="handleUploadManifesFile(event)" class="text-xs text-slate-400 file:mr-2.5 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-slate-700 file:text-sky-300 hover:file:bg-slate-600">
+              </div>
+              <div id="pengaturanManifesFileBadge" class="hidden mt-2 p-2 rounded-xl bg-slate-900 border border-slate-700 flex items-center justify-between">
+                <div class="flex items-center gap-2 overflow-hidden">
+                  <i data-lucide="file-check-2" class="w-4 h-4 text-emerald-400 shrink-0"></i>
+                  <span id="pengaturanManifesFileName" class="truncate text-[11px] text-slate-200">manifes.pdf</span>
+                </div>
+                <button type="button" onclick="clearUploadedManifesFile()" class="text-rose-400 hover:text-rose-300 p-1 text-[11px]" title="Hapus file">
+                  <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 4. Footer Buttons (Preview, Cetak, Batal, dan Kirim/Sahkan) -->
+        <div class="pt-4 border-t border-slate-800 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+          <!-- Tombol Cetak & Preview -->
+          <div class="flex items-center gap-2">
+            <button type="button" onclick="previewNeracaFromModal()" class="role-quick-btn flex items-center justify-center gap-1.5 flex-1 sm:flex-none" title="Pratinjau visual dokumen">
+              <i data-lucide="eye" class="w-4 h-4 text-sky-400"></i> Pratinjau
+            </button>
+            <button type="button" onclick="printNeracaFromModal()" class="btn-primary-pill !w-auto !py-2 !px-3.5 text-xs bg-slate-800 hover:bg-slate-700 flex items-center justify-center gap-1.5 flex-1 sm:flex-none" title="Cetak / Simpan PDF Portrait">
+              <i data-lucide="printer" class="w-4 h-4"></i> Cetak
+            </button>
+          </div>
+
+          <!-- Tombol Batal & Kirim/Sahkan -->
+          <div class="flex items-center justify-end gap-2">
+            <button type="button" onclick="closeModal('modalPengaturanCetakNeraca')" class="role-quick-btn">
+              Batal
+            </button>
+            <button type="button" id="btnKirimSahkanNeraca" onclick="submitWorkflowNeracaFromModal()" class="btn-lime-pill flex items-center justify-center gap-1.5">
+              <i data-lucide="send" id="iconKirimSahkan" class="w-4 h-4"></i>
+              <span id="textKirimSahkan">Kirim ke Penanggung Jawab</span>
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal 3.4.C: PREVIEW VISUAL DOKUMEN NERACA PORTRAIT -->
+  <div id="modalPreviewNeraca" class="modal-backdrop fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-2 sm:p-4 hidden">
+    <div class="bg-slate-900 border border-slate-700 rounded-3xl max-w-4xl w-full p-4 sm:p-6 shadow-2xl space-y-4 max-h-[94vh] flex flex-col">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-800 shrink-0">
+        <div>
+          <h3 class="text-base font-bold text-white flex items-center gap-2">
+            <i data-lucide="file-text" class="w-5 h-5 text-sky-400"></i>
+            Pratinjau Dokumen Neraca Limbah B3 (Lampiran IX)
+          </h3>
+          <p class="text-xs text-slate-400">Tampilan format Portrait resmi sebelum dicetak atau disahkan</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <button type="button" onclick="printNeracaFromModal(); closeModal('modalPreviewNeraca');" class="btn-lime-pill !py-1.5 !px-3 text-xs flex items-center gap-1">
+            <i data-lucide="printer" class="w-3.5 h-3.5"></i> Cetak Dokumen Ini
+          </button>
+          <button onclick="closeModal('modalPreviewNeraca')" class="text-slate-400 hover:text-white p-1 rounded-lg">
+            <i data-lucide="x" class="w-5 h-5"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Preview Paper Container (Simulasi Cetak Kertas Portrait) -->
+      <div class="flex-1 overflow-y-auto bg-slate-950/80 p-2 sm:p-4 rounded-2xl border border-slate-800">
+        <div id="previewPaperNeraca" class="paper-preview">
+          <!-- Diisi secara dinamis oleh previewNeracaFromModal() -->
+        </div>
+      </div>
     </div>
   </div>
 
