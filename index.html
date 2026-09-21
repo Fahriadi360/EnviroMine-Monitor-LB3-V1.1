@@ -106,6 +106,31 @@
         </button>
       </form>
 
+      <!-- Quick Demo Switcher (4 Roles in PRD) -->
+      <div class="mt-8 pt-6 border-t border-slate-800/80">
+        <p class="text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-3 text-center">
+          Pilih Cepat Role Pengguna (Demo Akses)
+        </p>
+        <div class="grid grid-cols-2 gap-2">
+          <button type="button" onclick="quickFillLogin('operator', 'operator123')" class="role-quick-btn flex items-center justify-between">
+            <span class="font-medium text-slate-200">1. Operator Lapangan</span>
+            <span class="text-[10px] text-emerald-400 font-mono">Input</span>
+          </button>
+          <button type="button" onclick="quickFillLogin('penanggung_jawab', 'pj12345')" class="role-quick-btn flex items-center justify-between">
+            <span class="font-medium text-slate-200">2. PJ TPS LB3</span>
+            <span class="text-[10px] text-vault-lime font-mono">Review</span>
+          </button>
+          <button type="button" onclick="quickFillLogin('admin_hse', 'admin123')" class="role-quick-btn flex items-center justify-between">
+            <span class="font-medium text-slate-200">3. Admin HSE</span>
+            <span class="text-[10px] text-sky-400 font-mono">Master</span>
+          </button>
+          <button type="button" onclick="quickFillLogin('ktt', 'ktt12345')" class="role-quick-btn flex items-center justify-between">
+            <span class="font-medium text-slate-200">4. Manajemen / KTT</span>
+            <span class="text-[10px] text-purple-400 font-mono">Final TTD</span>
+          </button>
+        </div>
+      </div>
+
       <!-- Legal footer -->
       <div class="mt-6 text-center">
         <p id="authAddressDisplay" class="text-[11px] text-slate-500">
@@ -578,6 +603,7 @@
                     <th>Surat Jalan & Manifes</th>
                     <th>Petugas</th>
                     <th>Status</th>
+                    <th>Aksi</th>
                   </tr>
                 </thead>
                 <tbody id="tableLimbahKeluarBody"></tbody>
@@ -1879,6 +1905,359 @@
         <button type="button" onclick="closeModal('modalGasConfig')" class="role-quick-btn">Batal</button>
         <button type="button" onclick="saveModalGasUrl()" class="btn-lime-pill">Simpan URL</button>
       </div>
+    </div>
+  </div>
+
+  <!-- Modal 3.12: Edit Dokumen Neraca Limbah B3 -->
+  <div id="modalEditNeraca" class="modal-backdrop fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 hidden">
+    <div class="bg-slate-900 border border-slate-700/80 rounded-3xl max-w-lg w-full p-5 sm:p-6 shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+        <div>
+          <h3 class="text-base font-bold text-white flex items-center gap-2">
+            <i data-lucide="edit-3" class="w-5 h-5 text-vault-lime"></i>
+            Edit Dokumen Neraca Limbah B3
+          </h3>
+          <p class="text-xs text-slate-400">Sesuaikan metadata nomor, periode, dokumen kontrol & tonase neraca</p>
+        </div>
+        <button onclick="closeModal('modalEditNeraca')" class="text-slate-400 hover:text-white p-1 rounded-lg">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <form id="formEditNeraca" onsubmit="handleSaveEditNeraca(event)" class="space-y-3.5 text-xs">
+        <input type="hidden" id="editNeracaId">
+
+        <div>
+          <label class="block font-semibold text-slate-300 mb-1">Nomor Dokumen Neraca</label>
+          <input type="text" id="editNeracaNomorDoc" required class="auth-input !py-2 text-xs bg-slate-800 text-vault-lime font-mono font-bold">
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-semibold text-slate-300 mb-1">Bulan Periode</label>
+            <select id="editNeracaBulan" class="auth-input !py-2 text-xs">
+              <option value="1">Januari</option>
+              <option value="2">Februari</option>
+              <option value="3">Maret</option>
+              <option value="4">April</option>
+              <option value="5">Mei</option>
+              <option value="6">Juni</option>
+              <option value="7">Juli</option>
+              <option value="8">Agustus</option>
+              <option value="9">September</option>
+              <option value="10">Oktober</option>
+              <option value="11">November</option>
+              <option value="12">Desember</option>
+            </select>
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-300 mb-1">Tahun Periode</label>
+            <input type="number" id="editNeracaTahun" required class="auth-input !py-2 text-xs font-mono">
+          </div>
+        </div>
+
+        <div>
+          <label class="block font-semibold text-slate-300 mb-1">Status Dokumen Neraca</label>
+          <select id="editNeracaStatus" class="auth-input !py-2 text-xs">
+            <option value="Draft (Menunggu Paraf Operator)">Draft (Menunggu Paraf Operator)</option>
+            <option value="Menunggu Approval Penanggung Jawab">Menunggu Approval Penanggung Jawab</option>
+            <option value="Menunggu Pengesahan KTT">Menunggu Pengesahan KTT</option>
+            <option value="Final">Final (Disahkan KTT)</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block font-semibold text-slate-300 mb-1">Jenis Dokumen Kontrol</label>
+          <select id="editNeracaDocKontrol" class="auth-input !py-2 text-xs">
+            <option value="Melampirkan Manifes">Melampirkan Manifes</option>
+            <option value="Tidak Melampirkan Manifes">Tidak Melampirkan Manifes</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block font-semibold text-slate-300 mb-1">Nomor Manifes / Keterangan Kontrol</label>
+          <input type="text" id="editNeracaNomorManifes" placeholder="Nomor manifes festronik jika ada" class="auth-input !py-2 text-xs">
+        </div>
+
+        <div class="p-3 rounded-2xl bg-slate-800/80 border border-slate-700/70 space-y-2">
+          <label class="block font-bold text-white text-[11px] uppercase tracking-wider">Penyesuaian Tonase Komponen (Ton):</label>
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="block text-[10px] text-slate-400">A. Total Masuk (Ton)</label>
+              <input type="number" step="0.001" id="editNeracaDataA" class="auth-input !py-1.5 text-xs font-mono">
+            </div>
+            <div>
+              <label class="block text-[10px] text-slate-400">B. Disimpan di TPS (Ton)</label>
+              <input type="number" step="0.001" id="editNeracaDataBDisimpan" class="auth-input !py-1.5 text-xs font-mono">
+            </div>
+            <div>
+              <label class="block text-[10px] text-slate-400">B. Diserahkan ke PK (Ton)</label>
+              <input type="number" step="0.001" id="editNeracaDataBDiserahkan" class="auth-input !py-1.5 text-xs font-mono">
+            </div>
+            <div>
+              <label class="block text-[10px] text-slate-400">Kinerja Pengelolaan (%)</label>
+              <input type="text" id="editNeracaKinerja" placeholder="100.00%" class="auth-input !py-1.5 text-xs font-mono text-vault-lime font-bold">
+            </div>
+          </div>
+        </div>
+
+        <div class="pt-3 border-t border-slate-800 flex justify-end gap-2">
+          <button type="button" onclick="closeModal('modalEditNeraca')" class="role-quick-btn">Batal</button>
+          <button type="submit" class="btn-lime-pill">Simpan Perubahan Neraca</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal 3.13: Tindak Lanjut & Progres Perbaikan Fasilitas TPS (Temuan Rusak) -->
+  <div id="modalPerbaikanInspeksi" class="modal-backdrop fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 hidden">
+    <div class="bg-slate-900 border border-slate-700/80 rounded-3xl max-w-xl w-full p-5 sm:p-6 shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+        <div>
+          <h3 class="text-base sm:text-lg font-bold text-white flex items-center gap-2">
+            <i data-lucide="wrench" class="w-5 h-5 text-amber-400"></i>
+            Tindak Lanjut & Progres Perbaikan Fasilitas TPS
+          </h3>
+          <p class="text-xs text-slate-400">Kelola progress penanganan temuan kerusakan hingga tuntas</p>
+        </div>
+        <button onclick="closeModal('modalPerbaikanInspeksi')" class="text-slate-400 hover:text-white p-1 rounded-lg">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <!-- Ringkasan Temuan Awal -->
+      <div class="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 space-y-1.5">
+        <div class="flex items-center justify-between text-xs">
+          <span id="perbaikanBadgeId" class="font-mono font-bold text-amber-400">INSP-XXX</span>
+          <span id="perbaikanBadgeTanggal" class="text-slate-400">2026-09-18</span>
+        </div>
+        <h4 id="perbaikanItemFasilitas" class="text-sm font-bold text-white">Alat Pemadam Api Ringan (APAR)</h4>
+        <p class="text-xs text-slate-300"><span class="text-slate-400">Temuan Awal:</span> <span id="perbaikanCatatanAwal" class="text-amber-200">Pressure gauge di bawah standar</span></p>
+        <p class="text-[11px] text-slate-400">Petugas Pemeriksa: <span id="perbaikanPetugasAwal" class="text-white font-medium">-</span></p>
+      </div>
+
+      <!-- Form Update Progres -->
+      <form id="formPerbaikanInspeksi" onsubmit="handleSavePerbaikanInspeksi(event)" class="space-y-3.5 text-xs">
+        <input type="hidden" id="perbaikanInspeksiId">
+
+        <div>
+          <label class="block font-semibold text-slate-300 mb-1">Status Progres Perbaikan Saat Ini</label>
+          <select id="perbaikanStatus" required class="auth-input !py-2.5 text-xs font-semibold">
+            <option value="Menunggu Tindak Lanjut" class="text-rose-400">⏳ Menunggu Tindak Lanjut</option>
+            <option value="Sedang Dikerjakan" class="text-amber-400">🔨 Sedang Dikerjakan / Dalam Proses</option>
+            <option value="Selesai Diperbaiki" class="text-emerald-400">✅ Selesai Diperbaiki (Closed)</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block font-semibold text-slate-300 mb-1">Rencana / Tindakan Perbaikan Yang Dilakukan</label>
+          <textarea id="perbaikanTindakan" rows="2" required placeholder="Contoh: Pengisian ulang gas nitrogen, penggantian segel pin, dan pembersihan nozzle..." class="auth-input !py-2 text-xs"></textarea>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block font-semibold text-slate-300 mb-1">Target / Tanggal Selesai</label>
+            <input type="date" id="perbaikanTanggalTarget" required class="auth-input !py-2 text-xs">
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-300 mb-1">Teknisi / PIC Penanggung Jawab</label>
+            <input type="text" id="perbaikanPic" required placeholder="Contoh: Tim Workshop / Vendor K3" class="auth-input !py-2 text-xs">
+          </div>
+        </div>
+
+        <div>
+          <label class="block font-semibold text-slate-300 mb-1">Unggah Foto Bukti Perbaikan (Opsional)</label>
+          <input type="file" id="perbaikanFotoInput" accept="image/*" onchange="handlePerbaikanFotoChange(event)" class="w-full text-xs text-slate-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-slate-800 file:text-amber-300 hover:file:bg-slate-700">
+          <div id="perbaikanFotoPreviewBox" class="hidden mt-2 p-2 rounded-xl bg-slate-950 border border-slate-800 flex items-center gap-3">
+            <img id="perbaikanFotoPreviewImg" src="" alt="Bukti Perbaikan" class="w-16 h-16 object-cover rounded-lg border border-slate-700">
+            <div class="text-[11px] text-slate-400">
+              <span class="text-emerald-400 font-bold block">✓ Foto Bukti Dipilih</span>
+              <button type="button" onclick="clearPerbaikanFoto()" class="text-rose-400 hover:underline mt-0.5">Hapus Foto</button>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <label class="block font-semibold text-slate-300 mb-1">Catatan Evaluasi / Keterangan Penutupan</label>
+          <textarea id="perbaikanCatatan" rows="2" placeholder="Catatan hasil pengujian setelah perbaikan selesai..." class="auth-input !py-2 text-xs"></textarea>
+        </div>
+
+        <!-- Riwayat Log Progres Sebelumnya -->
+        <div>
+          <label class="block font-bold text-slate-300 mb-1.5 flex items-center gap-1.5">
+            <i data-lucide="history" class="w-3.5 h-3.5 text-sky-400"></i>
+            Riwayat Progres Penanganan
+          </label>
+          <div id="perbaikanRiwayatContainer" class="p-2.5 rounded-xl bg-slate-950 border border-slate-800 max-h-36 overflow-y-auto space-y-2 text-[11px]">
+            <!-- Dynamic logs -->
+          </div>
+        </div>
+
+        <div class="pt-3 border-t border-slate-800 flex justify-end gap-2">
+          <button type="button" onclick="closeModal('modalPerbaikanInspeksi')" class="role-quick-btn">Batal</button>
+          <button type="submit" class="btn-lime-pill flex items-center gap-1.5">
+            <i data-lucide="save" class="w-4 h-4"></i>
+            Simpan Progres Perbaikan
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal 3.14: Edit Limbah Masuk -->
+  <div id="modalEditLimbahMasuk" class="modal-backdrop fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 hidden">
+    <div class="bg-slate-900 border border-slate-700/80 rounded-3xl max-w-lg w-full p-5 sm:p-6 shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+        <div>
+          <h3 class="text-base font-bold text-white flex items-center gap-2">
+            <i data-lucide="edit" class="w-5 h-5 text-vault-lime"></i>
+            Edit Data Penerimaan Limbah Masuk
+          </h3>
+          <p class="text-xs text-slate-400">Perbarui rincian volume, jenis, atau batas simpan limbah masuk</p>
+        </div>
+        <button onclick="closeModal('modalEditLimbahMasuk')" class="text-slate-400 hover:text-white p-1 rounded-lg">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <form id="formEditLimbahMasuk" onsubmit="handleSaveEditLimbahMasuk(event)" class="space-y-3.5 text-xs">
+        <input type="hidden" id="editMasukId">
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-semibold text-slate-300 mb-1">ID Penerimaan</label>
+            <input type="text" id="editMasukIdDisplay" readonly class="auth-input !py-2 text-xs bg-slate-800 font-mono text-sky-400">
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-300 mb-1">Tanggal Masuk</label>
+            <input type="datetime-local" id="editMasukTanggal" required class="auth-input !py-2 text-xs">
+          </div>
+        </div>
+
+        <div>
+          <label class="block font-semibold text-slate-300 mb-1">Jenis Limbah Terdaftar (Rintek)</label>
+          <select id="editMasukJenisSelect" onchange="handleSelectEditLimbahRintek(this.value)" class="auth-input !py-2 text-xs"></select>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-semibold text-slate-300 mb-1">Kode Limbah</label>
+            <input type="text" id="editMasukKode" required class="auth-input !py-2 text-xs font-mono font-bold text-vault-lime">
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-300 mb-1">Nama Limbah B3</label>
+            <input type="text" id="editMasukNama" required class="auth-input !py-2 text-xs">
+          </div>
+        </div>
+
+        <div>
+          <label class="block font-semibold text-slate-300 mb-1">Sumber Limbah</label>
+          <input type="text" id="editMasukSumber" required class="auth-input !py-2 text-xs">
+        </div>
+
+        <div class="grid grid-cols-3 gap-3">
+          <div class="col-span-2">
+            <label class="block font-semibold text-slate-300 mb-1">Jumlah Volume</label>
+            <input type="number" step="0.01" id="editMasukJumlah" required class="auth-input !py-2 text-xs font-mono font-bold">
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-300 mb-1">Satuan</label>
+            <select id="editMasukSatuan" class="auth-input !py-2 text-xs">
+              <option value="Kg">Kg</option>
+              <option value="Liter">Liter</option>
+              <option value="Ton">Ton</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-semibold text-slate-300 mb-1">Batas Simpan (Hari)</label>
+            <input type="number" id="editMasukBatasHari" required class="auth-input !py-2 text-xs font-mono">
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-300 mb-1">Status Stok</label>
+            <select id="editMasukStatusStok" class="auth-input !py-2 text-xs font-semibold">
+              <option value="Tersedia">Tersedia</option>
+              <option value="Keluar">Keluar</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="pt-3 border-t border-slate-800 flex justify-end gap-2">
+          <button type="button" onclick="closeModal('modalEditLimbahMasuk')" class="role-quick-btn">Batal</button>
+          <button type="submit" class="btn-lime-pill">Simpan Perubahan</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal 3.15: Edit Limbah Keluar -->
+  <div id="modalEditLimbahKeluar" class="modal-backdrop fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 hidden">
+    <div class="bg-slate-900 border border-slate-700/80 rounded-3xl max-w-lg w-full p-5 sm:p-6 shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+        <div>
+          <h3 class="text-base font-bold text-white flex items-center gap-2">
+            <i data-lucide="edit" class="w-5 h-5 text-sky-400"></i>
+            Edit Data Pengeluaran Limbah B3
+          </h3>
+          <p class="text-xs text-slate-400">Perbarui tujuan transporter, nomor surat jalan, atau manifes</p>
+        </div>
+        <button onclick="closeModal('modalEditLimbahKeluar')" class="text-slate-400 hover:text-white p-1 rounded-lg">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <form id="formEditLimbahKeluar" onsubmit="handleSaveEditLimbahKeluar(event)" class="space-y-3.5 text-xs">
+        <input type="hidden" id="editKeluarId">
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-semibold text-slate-300 mb-1">ID Pengeluaran</label>
+            <input type="text" id="editKeluarIdDisplay" readonly class="auth-input !py-2 text-xs bg-slate-800 font-mono text-sky-400">
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-300 mb-1">Ref ID Masuk</label>
+            <input type="text" id="editKeluarRefMasuk" readonly class="auth-input !py-2 text-xs bg-slate-800 font-mono text-slate-400">
+          </div>
+        </div>
+
+        <div>
+          <label class="block font-semibold text-slate-300 mb-1">Limbah B3</label>
+          <input type="text" id="editKeluarNamaLimbah" readonly class="auth-input !py-2 text-xs bg-slate-800 text-white font-semibold">
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-semibold text-slate-300 mb-1">Tanggal Keluar / Penyerahan</label>
+            <input type="datetime-local" id="editKeluarTanggal" required class="auth-input !py-2 text-xs">
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-300 mb-1">Jumlah Dikeluarkan</label>
+            <input type="number" step="0.01" id="editKeluarJumlah" required class="auth-input !py-2 text-xs font-mono font-bold">
+          </div>
+        </div>
+
+        <div>
+          <label class="block font-semibold text-slate-300 mb-1">Pihak Ketiga (Transporter/Pengolah)</label>
+          <select id="editKeluarPihakKetiga" required class="auth-input !py-2 text-xs"></select>
+        </div>
+
+        <div>
+          <label class="block font-semibold text-slate-300 mb-1">Nomor Surat Jalan</label>
+          <input type="text" id="editKeluarNoSJ" required class="auth-input !py-2 text-xs font-mono">
+        </div>
+
+        <div>
+          <label class="block font-semibold text-slate-300 mb-1">Nomor Manifes Festronik</label>
+          <input type="text" id="editKeluarNoManifes" required class="auth-input !py-2 text-xs font-mono">
+        </div>
+
+        <div class="pt-3 border-t border-slate-800 flex justify-end gap-2">
+          <button type="button" onclick="closeModal('modalEditLimbahKeluar')" class="role-quick-btn">Batal</button>
+          <button type="submit" class="btn-lime-pill">Simpan Perubahan</button>
+        </div>
+      </form>
     </div>
   </div>
 

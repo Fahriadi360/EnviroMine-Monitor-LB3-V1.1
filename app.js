@@ -945,13 +945,18 @@ function renderLimbahMasuk(filteredData = null) {
       <td class="text-slate-400">${item.operator}</td>
       <td><span class="badge-status ${item.statusStok === 'Tersedia' ? 'badge-lime' : 'badge-blue'}">${item.statusStok}</span></td>
       <td>
-        ${item.statusStok === 'Tersedia' ? `
-          <button onclick="quickKeluarLimbah('${item.id}')" class="btn-action-sm btn-edit">Keluarkan</button>
-        ` : `<span class="text-xs text-slate-500">-</span>`}
+        <div class="flex items-center gap-1.5">
+          ${item.statusStok === 'Tersedia' ? `
+            <button onclick="quickKeluarLimbah('${item.id}')" class="btn-action-sm bg-sky-500/20 text-sky-300 border border-sky-500/40 hover:bg-sky-500/30" title="Keluarkan Limbah">Keluarkan</button>
+          ` : ''}
+          <button onclick="openModalEditLimbahMasuk('${item.id}')" class="btn-action-sm btn-edit" title="Edit Limbah Masuk"><i data-lucide="edit-2" class="w-3.5 h-3.5"></i></button>
+          <button onclick="deleteLimbahMasuk('${item.id}')" class="btn-action-sm btn-delete" title="Hapus Limbah Masuk"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
+        </div>
       </td>
     `;
     table.appendChild(tr);
   });
+  if (window.lucide) lucide.createIcons();
 }
 
 function populateFilterMasukRintek() {
@@ -1113,6 +1118,110 @@ function handleFormLimbahMasuk(e) {
   renderDashboard();
 }
 
+function openModalEditLimbahMasuk(id) {
+  const masukList = JSON.parse(localStorage.getItem('db_limbah_masuk') || '[]');
+  const item = masukList.find(m => m.id === id);
+  if (!item) {
+    showToast('Data limbah masuk tidak ditemukan.', 'error');
+    return;
+  }
+
+  // Populate Rintek dropdown
+  const sel = document.getElementById('editMasukJenisSelect');
+  const rintek = JSON.parse(localStorage.getItem('db_rintek') || '[]');
+  sel.innerHTML = '<option value="">-- Pilih Limbah Rintek --</option>';
+  rintek.forEach(r => {
+    sel.innerHTML += `<option value="${r.kodeLimbah}" ${r.kodeLimbah === item.kodeLimbah ? 'selected' : ''}>${r.namaLimbah} (${r.kodeLimbah})</option>`;
+  });
+  sel.innerHTML += `<option value="CUSTOM_NON_RINTEK" ${item.statusRintek === 'Penanganan Khusus' ? 'selected' : ''}>+ Lainnya (Di Luar Rintek)</option>`;
+
+  document.getElementById('editMasukId').value = item.id;
+  document.getElementById('editMasukIdDisplay').value = item.id;
+  document.getElementById('editMasukTanggal').value = (item.tanggalMasuk || '').replace(' ', 'T');
+  document.getElementById('editMasukKode').value = item.kodeLimbah || '';
+  document.getElementById('editMasukNama').value = item.namaLimbah || '';
+  document.getElementById('editMasukSumber').value = item.sumber || '';
+  document.getElementById('editMasukJumlah').value = item.jumlah || '';
+  document.getElementById('editMasukSatuan').value = item.satuan || 'Kg';
+  document.getElementById('editMasukBatasHari').value = item.batasSimpanHari || 90;
+  document.getElementById('editMasukStatusStok').value = item.statusStok || 'Tersedia';
+
+  openModal('modalEditLimbahMasuk');
+}
+
+function handleSelectEditLimbahRintek(kode) {
+  if (!kode) return;
+  if (kode === 'CUSTOM_NON_RINTEK') {
+    document.getElementById('editMasukKode').value = 'NON-RINTEK';
+    return;
+  }
+  const rintek = JSON.parse(localStorage.getItem('db_rintek') || '[]');
+  const found = rintek.find(r => r.kodeLimbah === kode);
+  if (found) {
+    document.getElementById('editMasukKode').value = found.kodeLimbah;
+    document.getElementById('editMasukNama').value = found.namaLimbah;
+    document.getElementById('editMasukSumber').value = found.sumber;
+    document.getElementById('editMasukSatuan').value = found.satuan;
+    document.getElementById('editMasukBatasHari').value = found.batasSimpanHari;
+  }
+}
+
+function handleSaveEditLimbahMasuk(e) {
+  e.preventDefault();
+  const id = document.getElementById('editMasukId').value;
+  const list = JSON.parse(localStorage.getItem('db_limbah_masuk') || '[]');
+  const idx = list.findIndex(m => m.id === id);
+  if (idx === -1) {
+    showToast('Data limbah masuk tidak ditemukan.', 'error');
+    return;
+  }
+
+  const tglMasuk = document.getElementById('editMasukTanggal').value;
+  const batasHari = parseInt(document.getElementById('editMasukBatasHari').value) || 90;
+  const tglMasukDate = new Date(tglMasuk);
+  const tglTempo = new Date(tglMasukDate.getTime() + (batasHari * 24 * 60 * 60 * 1000));
+
+  list[idx].tanggalMasuk = tglMasuk.replace('T', ' ');
+  list[idx].kodeLimbah = document.getElementById('editMasukKode').value.trim();
+  list[idx].namaLimbah = document.getElementById('editMasukNama').value.trim();
+  list[idx].sumber = document.getElementById('editMasukSumber').value.trim();
+  list[idx].jumlah = parseFloat(document.getElementById('editMasukJumlah').value) || 0;
+  list[idx].satuan = document.getElementById('editMasukSatuan').value;
+  list[idx].batasSimpanHari = batasHari;
+  list[idx].tanggalJatuhTempo = tglTempo.toISOString().slice(0, 10);
+  list[idx].statusStok = document.getElementById('editMasukStatusStok').value;
+
+  localStorage.setItem('db_limbah_masuk', JSON.stringify(list));
+  addAuditLog(STATE.currentUser ? STATE.currentUser.nama : 'Operator', 'EDIT_LIMBAH_MASUK', `Mengubah data limbah masuk: ${list[idx].namaLimbah} (${id})`);
+  showToast('Data limbah masuk berhasil diperbarui.', 'success');
+  closeModal('modalEditLimbahMasuk');
+  renderLimbahMasuk();
+  renderDashboard();
+}
+
+function deleteLimbahMasuk(id) {
+  const list = JSON.parse(localStorage.getItem('db_limbah_masuk') || '[]');
+  const item = list.find(m => m.id === id);
+  if (!item) return;
+
+  if (item.statusStok === 'Keluar') {
+    if (!confirm(`Peringatan: Limbah masuk ${id} (${item.namaLimbah}) sudah tercatat berstatus Keluar. Menghapus limbah masuk ini dapat mempengaruhi riwayat pengeluaran. Tetap lanjutkan hapus?`)) {
+      return;
+    }
+  } else {
+    if (!confirm(`Apakah Anda yakin ingin menghapus data limbah masuk ${id} (${item.namaLimbah})?`)) {
+      return;
+    }
+  }
+
+  const updated = list.filter(m => m.id !== id);
+  localStorage.setItem('db_limbah_masuk', JSON.stringify(updated));
+  addAuditLog(STATE.currentUser ? STATE.currentUser.nama : 'Operator', 'DELETE_LIMBAH_MASUK', `Menghapus limbah masuk: ${item.namaLimbah} (${id})`);
+  showToast('Data limbah masuk berhasil dihapus.', 'info');
+  renderLimbahMasuk();
+  renderDashboard();
+}
+
 // --- 4.3 LIMBAH KELUAR ---
 function renderLimbahKeluar(filteredData = null) {
   populateFilterKeluarPK();
@@ -1123,7 +1232,7 @@ function renderLimbahKeluar(filteredData = null) {
   table.innerHTML = '';
 
   if (data.length === 0) {
-    table.innerHTML = `<tr><td colspan="9" class="text-center py-6 text-slate-500">Tidak ada data limbah keluar yang cocok.</td></tr>`;
+    table.innerHTML = `<tr><td colspan="10" class="text-center py-6 text-slate-500">Tidak ada data limbah keluar yang cocok.</td></tr>`;
     return;
   }
 
@@ -1145,9 +1254,16 @@ function renderLimbahKeluar(filteredData = null) {
       </td>
       <td class="text-slate-400">${item.operator}</td>
       <td><span class="badge-status badge-lime"><i data-lucide="check" class="w-3 h-3"></i> Terkonfirmasi</span></td>
+      <td>
+        <div class="flex items-center gap-1.5">
+          <button onclick="openModalEditLimbahKeluar('${item.id}')" class="btn-action-sm btn-edit" title="Edit Limbah Keluar"><i data-lucide="edit-2" class="w-3.5 h-3.5"></i></button>
+          <button onclick="deleteLimbahKeluar('${item.id}')" class="btn-action-sm btn-delete" title="Hapus Limbah Keluar"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
+        </div>
+      </td>
     `;
     table.appendChild(tr);
   });
+  if (window.lucide) lucide.createIcons();
 }
 
 function populateFilterKeluarPK() {
@@ -1277,6 +1393,94 @@ function handleFormLimbahKeluar(e) {
   renderDashboard();
 }
 
+function openModalEditLimbahKeluar(id) {
+  const keluarList = JSON.parse(localStorage.getItem('db_limbah_keluar') || '[]');
+  const item = keluarList.find(k => k.id === id);
+  if (!item) {
+    showToast('Data limbah keluar tidak ditemukan.', 'error');
+    return;
+  }
+
+  // Populate Pihak Ketiga dropdown
+  const pkSelect = document.getElementById('editKeluarPihakKetiga');
+  const pihakKetiga = JSON.parse(localStorage.getItem('db_pihak_ketiga') || '[]');
+  pkSelect.innerHTML = '';
+  pihakKetiga.forEach(pk => {
+    pkSelect.innerHTML += `<option value="${pk.namaPerusahaan}" ${pk.namaPerusahaan === item.tujuanPihakKetiga ? 'selected' : ''}>${pk.namaPerusahaan} (${pk.noIzin})</option>`;
+  });
+
+  document.getElementById('editKeluarId').value = item.id;
+  document.getElementById('editKeluarIdDisplay').value = item.id;
+  document.getElementById('editKeluarRefMasuk').value = item.refIdMasuk || '-';
+  document.getElementById('editKeluarNamaLimbah').value = `${item.namaLimbah} (${item.kodeLimbah})`;
+  document.getElementById('editKeluarTanggal').value = (item.tanggalKeluar || '').replace(' ', 'T');
+  document.getElementById('editKeluarJumlah').value = item.jumlah || '';
+  document.getElementById('editKeluarNoSJ').value = item.suratJalan || '';
+  document.getElementById('editKeluarNoManifes').value = item.manifes || '';
+
+  openModal('modalEditLimbahKeluar');
+}
+
+function handleSaveEditLimbahKeluar(e) {
+  e.preventDefault();
+  const id = document.getElementById('editKeluarId').value;
+  const list = JSON.parse(localStorage.getItem('db_limbah_keluar') || '[]');
+  const idx = list.findIndex(k => k.id === id);
+  if (idx === -1) {
+    showToast('Data limbah keluar tidak ditemukan.', 'error');
+    return;
+  }
+
+  const tglKeluar = document.getElementById('editKeluarTanggal').value;
+  const jumlah = parseFloat(document.getElementById('editKeluarJumlah').value) || 0;
+  const tujuan = document.getElementById('editKeluarPihakKetiga').value;
+  const noSJ = document.getElementById('editKeluarNoSJ').value.trim();
+  const noManifes = document.getElementById('editKeluarNoManifes').value.trim();
+
+  list[idx].tanggalKeluar = tglKeluar.replace('T', ' ');
+  list[idx].jumlah = jumlah;
+  list[idx].tujuanPihakKetiga = tujuan;
+  list[idx].suratJalan = noSJ;
+  list[idx].manifes = noManifes;
+
+  localStorage.setItem('db_limbah_keluar', JSON.stringify(list));
+  addAuditLog(STATE.currentUser ? STATE.currentUser.nama : 'Operator', 'EDIT_LIMBAH_KELUAR', `Mengubah transaksi limbah keluar: ${list[idx].namaLimbah} (${id})`);
+  showToast('Data pengeluaran limbah berhasil diperbarui.', 'success');
+  closeModal('modalEditLimbahKeluar');
+  renderLimbahKeluar();
+  renderDashboard();
+}
+
+function deleteLimbahKeluar(id) {
+  const keluarList = JSON.parse(localStorage.getItem('db_limbah_keluar') || '[]');
+  const item = keluarList.find(k => k.id === id);
+  if (!item) return;
+
+  if (!confirm(`Apakah Anda yakin ingin menghapus data limbah keluar ${id} (${item.namaLimbah})?\nStatus stok limbah masuk terkait (${item.refIdMasuk}) akan otomatis dikembalikan menjadi "Tersedia".`)) {
+    return;
+  }
+
+  // Restore status in Limbah Masuk if refIdMasuk exists
+  if (item.refIdMasuk) {
+    const masukList = JSON.parse(localStorage.getItem('db_limbah_masuk') || '[]');
+    const idxMasuk = masukList.findIndex(m => m.id === item.refIdMasuk);
+    if (idxMasuk !== -1) {
+      masukList[idxMasuk].statusStok = 'Tersedia';
+      localStorage.setItem('db_limbah_masuk', JSON.stringify(masukList));
+    }
+  }
+
+  const updatedKeluar = keluarList.filter(k => k.id !== id);
+  localStorage.setItem('db_limbah_keluar', JSON.stringify(updatedKeluar));
+
+  addAuditLog(STATE.currentUser ? STATE.currentUser.nama : 'Operator', 'DELETE_LIMBAH_KELUAR', `Menghapus limbah keluar: ${item.namaLimbah} (${id}), stok ${item.refIdMasuk} dikembalikan`);
+  showToast('Data limbah keluar dihapus. Status stok limbah terkait kembali Tersedia.', 'info');
+
+  renderLimbahKeluar();
+  renderLimbahMasuk();
+  renderDashboard();
+}
+
 // --- 4.4 PENANGANAN KHUSUS ---
 function renderPenangananKhusus() {
   const table = document.getElementById('tablePenangananKhususBody');
@@ -1351,20 +1555,57 @@ function renderInspeksi(filteredData = null) {
   }
 
   data.slice().reverse().forEach(item => {
+    let kondisiHtml = `
+      <span class="badge-status ${item.kondisi === 'Baik' ? 'badge-green' : 'badge-red'}">
+        ${item.kondisi}
+      </span>
+    `;
+
+    let repairActionBtn = '';
+
+    if (item.kondisi === 'Rusak') {
+      const perbaikan = item.perbaikan || { status: 'Menunggu Tindak Lanjut' };
+      let badgeClass = 'badge-yellow';
+      let icon = 'clock';
+      if (perbaikan.status === 'Selesai Diperbaiki') {
+        badgeClass = 'badge-green';
+        icon = 'check-circle';
+      } else if (perbaikan.status === 'Sedang Dikerjakan') {
+        badgeClass = 'badge-yellow';
+        icon = 'wrench';
+      } else {
+        badgeClass = 'badge-red';
+        icon = 'alert-circle';
+      }
+
+      kondisiHtml += `
+        <div class="mt-1">
+          <span class="badge-status ${badgeClass} text-[10px] inline-flex items-center gap-1 font-sans">
+            <i data-lucide="${icon}" class="w-3 h-3"></i>
+            ${perbaikan.status}
+          </span>
+        </div>
+      `;
+
+      repairActionBtn = `
+        <button onclick="openModalPerbaikanInspeksi('${item.id}')" class="btn-action-sm bg-amber-500/20 text-amber-300 hover:bg-amber-500/30 border border-amber-500/40 flex items-center gap-1" title="Tindak Lanjut & Progres Perbaikan">
+          <i data-lucide="wrench" class="w-3.5 h-3.5"></i>
+          <span class="text-[11px] font-semibold">Perbaikan</span>
+        </button>
+      `;
+    }
+
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td class="font-mono text-sky-400 font-medium">${item.id}</td>
       <td class="text-xs text-slate-300">${item.tanggal}</td>
       <td class="font-semibold text-white">${item.itemChecklist}</td>
-      <td>
-        <span class="badge-status ${item.kondisi === 'Baik' ? 'badge-green' : 'badge-red'}">
-          ${item.kondisi}
-        </span>
-      </td>
+      <td>${kondisiHtml}</td>
       <td class="text-xs text-slate-300">${item.catatan || '-'}</td>
       <td class="text-slate-400">${item.operator}</td>
       <td>
         <div class="flex items-center gap-1.5">
+          ${repairActionBtn}
           <button onclick="openModalEditInspeksi('${item.id}')" class="btn-action-sm btn-edit" title="Edit Catatan"><i data-lucide="edit-2" class="w-3.5 h-3.5"></i></button>
           <button onclick="deleteInspeksi('${item.id}')" class="btn-action-sm btn-delete" title="Hapus"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
         </div>
@@ -1372,6 +1613,7 @@ function renderInspeksi(filteredData = null) {
     `;
     table.appendChild(tr);
   });
+  if (window.lucide) lucide.createIcons();
 }
 
 function applyFilterInspeksi() {
@@ -1506,6 +1748,158 @@ function deleteInspeksi(id) {
     showToast('Data inspeksi berhasil dihapus.', 'info');
     renderInspeksi();
   }
+}
+
+// Global temp variable for foto bukti perbaikan
+let tempPerbaikanFoto = null;
+
+function openModalPerbaikanInspeksi(id) {
+  const list = JSON.parse(localStorage.getItem('db_inspeksi') || '[]');
+  const item = list.find(i => i.id === id);
+  if (!item) {
+    showToast('Data inspeksi tidak ditemukan.', 'error');
+    return;
+  }
+
+  // Set ringkasan
+  document.getElementById('perbaikanInspeksiId').value = item.id;
+  document.getElementById('perbaikanBadgeId').textContent = item.id;
+  document.getElementById('perbaikanBadgeTanggal').textContent = item.tanggal;
+  document.getElementById('perbaikanItemFasilitas').textContent = item.itemChecklist;
+  document.getElementById('perbaikanCatatanAwal').textContent = item.catatan || 'Kondisi fisik dilaporkan rusak / tidak standar';
+  document.getElementById('perbaikanPetugasAwal').textContent = item.operator || '-';
+
+  // Set existing perbaikan data or defaults
+  const p = item.perbaikan || {
+    status: 'Menunggu Tindak Lanjut',
+    tindakan: '',
+    targetSelesai: new Date().toISOString().slice(0, 10),
+    pic: STATE.currentUser ? STATE.currentUser.nama : 'Tim Pemeliharaan K3L',
+    fotoUrl: '',
+    catatan: '',
+    riwayat: []
+  };
+
+  document.getElementById('perbaikanStatus').value = p.status || 'Menunggu Tindak Lanjut';
+  document.getElementById('perbaikanTindakan').value = p.tindakan || '';
+  document.getElementById('perbaikanTanggalTarget').value = p.targetSelesai || new Date().toISOString().slice(0, 10);
+  document.getElementById('perbaikanPic').value = p.pic || (STATE.currentUser ? STATE.currentUser.nama : 'Tim K3L');
+  document.getElementById('perbaikanCatatan').value = p.catatan || '';
+
+  // Foto bukti preview
+  tempPerbaikanFoto = p.fotoUrl || null;
+  const previewBox = document.getElementById('perbaikanFotoPreviewBox');
+  const previewImg = document.getElementById('perbaikanFotoPreviewImg');
+  if (tempPerbaikanFoto) {
+    previewBox.classList.remove('hidden');
+    previewImg.src = tempPerbaikanFoto;
+  } else {
+    previewBox.classList.add('hidden');
+    previewImg.src = '';
+  }
+  document.getElementById('perbaikanFotoInput').value = '';
+
+  // Render riwayat progres
+  const riwayatContainer = document.getElementById('perbaikanRiwayatContainer');
+  riwayatContainer.innerHTML = '';
+  const riwayat = p.riwayat || [];
+  if (riwayat.length === 0) {
+    riwayatContainer.innerHTML = `<p class="text-slate-500 italic">Belum ada catatan progres perbaikan sebelumnya.</p>`;
+  } else {
+    riwayat.slice().reverse().forEach((r) => {
+      let statusColor = 'text-amber-400';
+      if (r.status === 'Selesai Diperbaiki') statusColor = 'text-emerald-400';
+      if (r.status === 'Menunggu Tindak Lanjut') statusColor = 'text-rose-400';
+
+      const div = document.createElement('div');
+      div.className = 'p-2 rounded-lg bg-slate-900 border border-slate-800 space-y-1';
+      div.innerHTML = `
+        <div class="flex items-center justify-between">
+          <span class="font-bold ${statusColor}">${r.status}</span>
+          <span class="text-slate-500 text-[10px]">${r.tanggal}</span>
+        </div>
+        <p class="text-slate-300 text-[11px]">${r.keterangan || '-'}</p>
+        <p class="text-[10px] text-slate-400">Oleh: <span class="text-white">${r.petugas || 'Petugas'}</span> ${r.target ? `&bull; Target: ${r.target}` : ''}</p>
+      `;
+      riwayatContainer.appendChild(div);
+    });
+  }
+
+  openModal('modalPerbaikanInspeksi');
+  if (window.lucide) lucide.createIcons();
+}
+
+function handlePerbaikanFotoChange(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    tempPerbaikanFoto = e.target.result;
+    document.getElementById('perbaikanFotoPreviewBox').classList.remove('hidden');
+    document.getElementById('perbaikanFotoPreviewImg').src = tempPerbaikanFoto;
+  };
+  reader.readAsDataURL(file);
+}
+
+function clearPerbaikanFoto() {
+  tempPerbaikanFoto = null;
+  document.getElementById('perbaikanFotoPreviewBox').classList.add('hidden');
+  document.getElementById('perbaikanFotoPreviewImg').src = '';
+  document.getElementById('perbaikanFotoInput').value = '';
+}
+
+function handleSavePerbaikanInspeksi(e) {
+  e.preventDefault();
+  const id = document.getElementById('perbaikanInspeksiId').value;
+  const status = document.getElementById('perbaikanStatus').value;
+  const tindakan = document.getElementById('perbaikanTindakan').value.trim();
+  const target = document.getElementById('perbaikanTanggalTarget').value;
+  const pic = document.getElementById('perbaikanPic').value.trim();
+  const catatan = document.getElementById('perbaikanCatatan').value.trim();
+
+  const list = JSON.parse(localStorage.getItem('db_inspeksi') || '[]');
+  const item = list.find(i => i.id === id);
+  if (!item) {
+    showToast('Data temuan inspeksi tidak ditemukan.', 'error');
+    return;
+  }
+
+  if (!item.perbaikan) {
+    item.perbaikan = { riwayat: [] };
+  }
+  if (!item.perbaikan.riwayat) {
+    item.perbaikan.riwayat = [];
+  }
+
+  const nowStr = new Date().toISOString().slice(0, 16).replace('T', ' ');
+  const updaterName = STATE.currentUser ? STATE.currentUser.nama : 'Operator';
+
+  // Tambahkan ke log riwayat
+  item.perbaikan.riwayat.push({
+    tanggal: nowStr,
+    status: status,
+    keterangan: tindakan + (catatan ? ` (Catatan: ${catatan})` : ''),
+    target: target,
+    pic: pic,
+    petugas: updaterName
+  });
+
+  item.perbaikan.status = status;
+  item.perbaikan.tindakan = tindakan;
+  item.perbaikan.targetSelesai = target;
+  item.perbaikan.pic = pic;
+  item.perbaikan.catatan = catatan;
+  if (tempPerbaikanFoto) {
+    item.perbaikan.fotoUrl = tempPerbaikanFoto;
+  }
+
+  localStorage.setItem('db_inspeksi', JSON.stringify(list));
+  addAuditLog(updaterName, 'UPDATE_PERBAIKAN_INSPEKSI', `Update progres perbaikan ${item.itemChecklist} (${id}): ${status}`);
+  showToast(`Progres perbaikan berhasil disimpan: ${status}`, 'success');
+
+  closeModal('modalPerbaikanInspeksi');
+  renderInspeksi();
 }
 
 // --- 4.6 LOGBOOK PERMEN LHK (DENGAN FILTER BULAN & TAHUN - Revisi #3) ---
@@ -1875,12 +2269,18 @@ function renderNeraca(filteredData = null) {
           <h3 class="text-lg font-bold text-white">${n.periode}</h3>
           <p class="text-xs text-slate-300 font-mono">No: <span class="text-vault-lime font-bold">${n.nomorDokumen || n.id}</span> &bull; Kontrol: <span class="text-sky-400 font-sans">${n.dokumenKontrol || 'Melampirkan Manifes'}</span></p>
         </div>
-        <div class="flex items-center gap-2">
+        <div class="flex flex-wrap items-center gap-2">
           <span class="badge-status ${n.status === 'Final' ? 'badge-green' : 'badge-yellow'} font-bold">
             ${n.status}
           </span>
-          <button onclick="openModalPengaturanNeraca('${n.id}')" class="btn-primary-pill !w-auto !py-1.5 !px-3 text-xs bg-slate-800 hover:bg-slate-700">
+          <button onclick="openModalPengaturanNeraca('${n.id}')" class="btn-primary-pill !w-auto !py-1.5 !px-3 text-xs bg-slate-800 hover:bg-slate-700" title="Cetak Neraca Portrait">
             <i data-lucide="printer" class="w-3.5 h-3.5"></i> Cetak Neraca (Portrait)
+          </button>
+          <button onclick="openModalEditNeraca('${n.id}')" class="btn-action-sm btn-edit flex items-center gap-1" title="Edit Dokumen Neraca">
+            <i data-lucide="edit-2" class="w-3.5 h-3.5"></i> <span class="text-xs">Edit</span>
+          </button>
+          <button onclick="deleteNeraca('${n.id}')" class="btn-action-sm btn-delete flex items-center gap-1" title="Hapus Dokumen Neraca">
+            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> <span class="text-xs">Hapus</span>
           </button>
         </div>
       </div>
@@ -1964,6 +2364,7 @@ function renderNeraca(filteredData = null) {
     `;
     container.appendChild(card);
   });
+  if (window.lucide) lucide.createIcons();
 }
 
 function applyFilterNeraca() {
@@ -1981,6 +2382,89 @@ function resetFilterNeraca() {
 function refreshNeraca() {
   resetFilterNeraca();
   showToast('Neraca Limbah disegarkan.', 'info');
+}
+
+function openModalEditNeraca(neracaId) {
+  const neracaList = JSON.parse(localStorage.getItem('db_neraca') || '[]');
+  const n = neracaList.find(item => item.id === neracaId);
+  if (!n) {
+    showToast('Dokumen Neraca tidak ditemukan.', 'error');
+    return;
+  }
+
+  document.getElementById('editNeracaId').value = n.id;
+  document.getElementById('editNeracaNomorDoc').value = n.nomorDokumen || n.id;
+  document.getElementById('editNeracaBulan').value = n.bulan || 9;
+  document.getElementById('editNeracaTahun').value = n.tahun || 2026;
+  document.getElementById('editNeracaStatus').value = n.status || 'Draft (Menunggu Paraf Operator)';
+  document.getElementById('editNeracaDocKontrol').value = n.dokumenKontrol || 'Melampirkan Manifes';
+  document.getElementById('editNeracaNomorManifes').value = n.nomorManifes || '';
+
+  document.getElementById('editNeracaDataA').value = n.dataA || '0.000';
+  document.getElementById('editNeracaDataBDisimpan').value = (n.dataB && n.dataB.disimpan) || '0.000';
+  document.getElementById('editNeracaDataBDiserahkan').value = (n.dataB && n.dataB.diserahkanPihakKetiga) || '0.000';
+  document.getElementById('editNeracaKinerja').value = n.kinerja || '100.00%';
+
+  openModal('modalEditNeraca');
+}
+
+function handleSaveEditNeraca(e) {
+  e.preventDefault();
+  const id = document.getElementById('editNeracaId').value;
+  const neracaList = JSON.parse(localStorage.getItem('db_neraca') || '[]');
+  const idx = neracaList.findIndex(n => n.id === id);
+  if (idx === -1) {
+    showToast('Dokumen Neraca tidak ditemukan.', 'error');
+    return;
+  }
+
+  const noDoc = document.getElementById('editNeracaNomorDoc').value.trim();
+  const bulan = parseInt(document.getElementById('editNeracaBulan').value) || 9;
+  const tahun = parseInt(document.getElementById('editNeracaTahun').value) || 2026;
+  const status = document.getElementById('editNeracaStatus').value;
+  const docKontrol = document.getElementById('editNeracaDocKontrol').value;
+  const noManifes = document.getElementById('editNeracaNomorManifes').value.trim();
+
+  const dataA = parseFloat(document.getElementById('editNeracaDataA').value) || 0;
+  const dataBDisimpan = parseFloat(document.getElementById('editNeracaDataBDisimpan').value) || 0;
+  const dataBDiserahkan = parseFloat(document.getElementById('editNeracaDataBDiserahkan').value) || 0;
+  const kinerja = document.getElementById('editNeracaKinerja').value.trim();
+
+  neracaList[idx].nomorDokumen = noDoc;
+  neracaList[idx].bulan = bulan;
+  neracaList[idx].tahun = tahun;
+  neracaList[idx].periode = `${BULAN_NAMA[bulan - 1]} ${tahun}`;
+  neracaList[idx].status = status;
+  neracaList[idx].dokumenKontrol = docKontrol;
+  neracaList[idx].nomorManifes = noManifes;
+  neracaList[idx].dataA = dataA.toFixed(3);
+  if (!neracaList[idx].dataB) neracaList[idx].dataB = {};
+  neracaList[idx].dataB.disimpan = dataBDisimpan.toFixed(3);
+  neracaList[idx].dataB.diserahkanPihakKetiga = dataBDiserahkan.toFixed(3);
+  neracaList[idx].kinerja = kinerja || '100.00%';
+
+  localStorage.setItem('db_neraca', JSON.stringify(neracaList));
+  addAuditLog(STATE.currentUser ? STATE.currentUser.nama : 'Operator', 'EDIT_NERACA', `Mengubah dokumen Neraca: ${noDoc} (${neracaList[idx].periode})`);
+  showToast('Perubahan dokumen Neraca berhasil disimpan.', 'success');
+  closeModal('modalEditNeraca');
+  renderNeraca();
+}
+
+function deleteNeraca(id) {
+  const neracaList = JSON.parse(localStorage.getItem('db_neraca') || '[]');
+  const item = neracaList.find(n => n.id === id);
+  if (!item) return;
+
+  if (!confirm(`Apakah Anda yakin ingin menghapus dokumen Neraca nomor "${item.nomorDokumen || item.id}" (${item.periode})?`)) {
+    return;
+  }
+
+  const updated = neracaList.filter(n => n.id !== id);
+  localStorage.setItem('db_neraca', JSON.stringify(updated));
+
+  addAuditLog(STATE.currentUser ? STATE.currentUser.nama : 'Operator', 'DELETE_NERACA', `Menghapus dokumen Neraca: ${item.nomorDokumen || item.id}`);
+  showToast('Dokumen Neraca berhasil dihapus.', 'info');
+  renderNeraca();
 }
 
 // --- CETAK NERACA PORTRAIT PERSIS LAMPIRAN 2 (KOP ALIGN LEFT - Revisi #3 & #4) ---
