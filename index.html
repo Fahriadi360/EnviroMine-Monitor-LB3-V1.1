@@ -106,6 +106,31 @@
         </button>
       </form>
 
+      <!-- Quick Demo Switcher (4 Roles in PRD) -->
+      <div class="mt-8 pt-6 border-t border-slate-800/80">
+        <p class="text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-3 text-center">
+          Pilih Cepat Role Pengguna (Demo Akses)
+        </p>
+        <div class="grid grid-cols-2 gap-2">
+          <button type="button" onclick="quickFillLogin('operator', 'operator123')" class="role-quick-btn flex items-center justify-between">
+            <span class="font-medium text-slate-200">1. Operator Lapangan</span>
+            <span class="text-[10px] text-emerald-400 font-mono">Input</span>
+          </button>
+          <button type="button" onclick="quickFillLogin('penanggung_jawab', 'pj12345')" class="role-quick-btn flex items-center justify-between">
+            <span class="font-medium text-slate-200">2. PJ TPS LB3</span>
+            <span class="text-[10px] text-vault-lime font-mono">Review</span>
+          </button>
+          <button type="button" onclick="quickFillLogin('admin_hse', 'admin123')" class="role-quick-btn flex items-center justify-between">
+            <span class="font-medium text-slate-200">3. Admin HSE</span>
+            <span class="text-[10px] text-sky-400 font-mono">Master</span>
+          </button>
+          <button type="button" onclick="quickFillLogin('ktt', 'ktt12345')" class="role-quick-btn flex items-center justify-between">
+            <span class="font-medium text-slate-200">4. Manajemen / KTT</span>
+            <span class="text-[10px] text-purple-400 font-mono">Final TTD</span>
+          </button>
+        </div>
+      </div>
+
       <!-- Legal footer -->
       <div class="mt-6 text-center">
         <p id="authAddressDisplay" class="text-[11px] text-slate-500">
@@ -1117,36 +1142,81 @@
 
             <!-- GAS Backend Integration Card -->
             <div class="data-card space-y-4">
-              <h3 class="text-base font-bold text-white flex items-center gap-2">
-                <i data-lucide="cloud-cog" class="w-4 h-4 text-vault-lime"></i> Integrasi Google Apps Script
-              </h3>
+              <div class="flex items-center justify-between">
+                <h3 class="text-base font-bold text-white flex items-center gap-2">
+                  <i data-lucide="cloud-cog" class="w-4 h-4 text-vault-lime"></i> Integrasi Google Apps Script
+                </h3>
+                <button type="button" onclick="openGasSettingsModal()" class="text-xs text-sky-400 hover:text-white flex items-center gap-1 font-mono">
+                  <i data-lucide="external-link" class="w-3.5 h-3.5"></i> Panduan Lengkap
+                </button>
+              </div>
+
               <p class="text-xs text-slate-400">
-                Aplikasi ini mendukung mode <strong>Hybrid</strong>: Dapat berjalan di GitHub Pages dengan menghubungkan Web App URL dari GAS backend (`Code.gs`), atau berjalan langsung dengan Local Storage Engine.
+                Aplikasi mendukung arsitektur <strong>Hybrid Offline-First</strong>: Data tersimpan instan di perangkat lokal dan disinkronkan secara real-time ke Google Spreadsheet & Google Drive melalui Web App URL GAS (<code class="text-vault-lime">gas/Code.gs</code>).
               </p>
+
+              <!-- Petunjuk Deployment Singkat -->
+              <div class="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-xs text-amber-200 space-y-1">
+                <p class="font-bold flex items-center gap-1.5 text-amber-300 text-[11px]">
+                  <i data-lucide="alert-triangle" class="w-3.5 h-3.5"></i> Syarat Deployment Web App (PENTING):
+                </p>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-1 text-[11px] text-slate-300 pt-0.5">
+                  <div>&bull; <strong>Execute as:</strong> <span class="text-white">Me (email Anda)</span></div>
+                  <div>&bull; <strong>Who has access:</strong> <span class="text-emerald-400 font-bold underline">Anyone</span></div>
+                  <div>&bull; <strong>Format URL:</strong> Berakhiran <code class="text-sky-300 font-mono">/exec</code> (Bukan /dev)</div>
+                  <div>&bull; <strong>CORS:</strong> Mode aman tanpa preflight blocking</div>
+                </div>
+              </div>
 
               <div>
                 <label class="block text-xs font-semibold text-slate-400 mb-1">Google Apps Script Web App Exec URL</label>
-                <input type="url" id="inputGasUrl" placeholder="https://script.google.com/macros/s/.../exec" class="auth-input !py-2 text-xs font-mono">
+                <input type="url" id="inputGasUrl" placeholder="https://script.google.com/macros/s/.../exec" oninput="sanitizeGasUrlInput(this)" class="auth-input !py-2 text-xs font-mono text-sky-400">
+                <p id="cfgGasUrlNotice" class="text-[10px] text-slate-400 mt-1">Harus berakhiran <strong>/exec</strong> dari menu Deploy &gt; New deployment &gt; Web app.</p>
               </div>
 
-              <div class="flex items-center gap-2">
-                <button onclick="saveGasUrlConfig()" class="btn-primary-pill !py-2 !px-4 text-xs !w-auto">
-                  Simpan & Test Koneksi
-                </button>
-                <button onclick="resetToLocalEngine()" class="role-quick-btn text-xs">
-                  Gunakan Local Demo Engine
-                </button>
-              </div>
-
-              <div class="p-3 rounded-xl bg-slate-900 border border-slate-800 text-xs space-y-1">
+              <!-- Status Diagnostik Panel -->
+              <div class="p-3 rounded-2xl bg-slate-950 border border-slate-800 text-xs space-y-1.5">
                 <div class="flex items-center justify-between">
+                  <span class="text-slate-400">Status Koneksi:</span>
+                  <span id="cfgGasStatusBadge" class="badge-status badge-blue">Belum Diuji</span>
+                </div>
+                <div class="flex items-center justify-between text-[11px]">
+                  <span class="text-slate-400">Latensi Respon:</span>
+                  <span id="cfgGasLatencyText" class="font-mono text-slate-300">-</span>
+                </div>
+                <div class="flex items-center justify-between text-[11px]">
+                  <span class="text-slate-400">Pesan Server:</span>
+                  <span id="cfgGasServerMsgText" class="font-mono text-slate-300">-</span>
+                </div>
+                <div class="flex items-center justify-between text-[11px] pt-1 border-t border-slate-900">
                   <span class="text-slate-400">Status Database:</span>
                   <span id="cfgDbStatus" class="text-vault-lime font-mono">Siap Digunakan</span>
                 </div>
-                <div class="flex items-center justify-between">
-                  <span class="text-slate-400">Folder Storage Drive:</span>
-                  <span class="text-sky-400 font-mono">EnviroMine_Monitor_Data</span>
-                </div>
+              </div>
+
+              <!-- Action Buttons Grid -->
+              <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 text-xs">
+                <button type="button" onclick="testGasConnection()" class="role-quick-btn flex items-center justify-center gap-1.5 !py-2">
+                  <i data-lucide="radio" class="w-4 h-4 text-sky-400"></i> Test Koneksi
+                </button>
+                <button type="button" onclick="saveGasUrlConfig()" class="btn-primary-pill !w-auto flex items-center justify-center gap-1.5 !py-2">
+                  <i data-lucide="save" class="w-4 h-4 text-white"></i> Simpan URL
+                </button>
+                <button type="button" onclick="syncFromGasCloud()" class="btn-primary-pill !w-auto flex items-center justify-center gap-1.5 !py-2 bg-slate-800 hover:bg-slate-700">
+                  <i data-lucide="download-cloud" class="w-4 h-4 text-emerald-400"></i> Tarik Cloud
+                </button>
+                <button type="button" onclick="setupGasSpreadsheet()" class="role-quick-btn flex items-center justify-center gap-1.5 !py-2" title="Buat seluruh sheet & header otomatis di Google Spreadsheet">
+                  <i data-lucide="table-properties" class="w-4 h-4 text-vault-lime"></i> Inisialisasi
+                </button>
+              </div>
+
+              <div class="flex items-center justify-between pt-2 border-t border-slate-800 text-xs">
+                <button type="button" onclick="pushDataToGasCloud()" class="role-quick-btn !py-1.5 flex items-center gap-1.5" title="Kirim data lokal saat ini ke Google Spreadsheet">
+                  <i data-lucide="upload-cloud" class="w-3.5 h-3.5 text-amber-400"></i> Kirim Data Lokal ke Cloud
+                </button>
+                <button type="button" onclick="resetToLocalEngine()" class="text-xs text-rose-400 hover:underline">
+                  Gunakan Local Demo Saja
+                </button>
               </div>
             </div>
           </div>
@@ -1855,30 +1925,82 @@
   </div>
 
   <!-- Modal 3.11: Konfigurasi URL Google Apps Script -->
-  <div id="modalGasConfig" class="modal-backdrop fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
-    <div class="bg-slate-900 border border-slate-700/80 rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4">
+  <div id="modalGasConfig" class="modal-backdrop fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 hidden">
+    <div class="bg-slate-900 border border-slate-700/80 rounded-3xl max-w-lg w-full p-5 sm:p-6 shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto">
       <div class="flex items-center justify-between pb-3 border-b border-slate-800">
-        <h3 class="text-base font-bold text-white flex items-center gap-2">
-          <i data-lucide="link-2" class="w-5 h-5 text-sky-400"></i>
-          Konfigurasi Endpoint Apps Script
-        </h3>
-        <button onclick="closeModal('modalGasConfig')" class="text-slate-400 hover:text-white">
+        <div>
+          <h3 class="text-base sm:text-lg font-bold text-white flex items-center gap-2">
+            <i data-lucide="cloud-cog" class="w-5 h-5 text-vault-lime"></i>
+            Koneksi Google Apps Script (GAS)
+          </h3>
+          <p class="text-xs text-slate-400">Hubungkan antarmuka frontend dengan database Google Sheets</p>
+        </div>
+        <button onclick="closeModal('modalGasConfig')" class="text-slate-400 hover:text-white p-1 rounded-lg">
           <i data-lucide="x" class="w-5 h-5"></i>
         </button>
       </div>
 
-      <p class="text-xs text-slate-300 leading-relaxed">
-        Masukkan URL Web App dari file <code class="text-vault-lime">gas/Code.gs</code> yang telah di-deploy ke Google Apps Script (Deploy as Web App, Access: Anyone).
-      </p>
-
-      <div>
-        <label class="block text-xs font-semibold text-slate-400 mb-1">Web App Exec URL</label>
-        <input type="url" id="modalGasUrlInput" placeholder="https://script.google.com/macros/s/.../exec" class="auth-input !py-2 text-xs font-mono">
+      <!-- Info Deployment Penting -->
+      <div class="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-xs text-amber-200 space-y-1">
+        <p class="font-bold flex items-center gap-1.5 text-amber-300">
+          <i data-lucide="alert-triangle" class="w-4 h-4"></i> Petunjuk Deployment Web App (PENTING):
+        </p>
+        <ol class="list-decimal pl-4 space-y-0.5 text-[11px] text-slate-300">
+          <li>Buka file <code class="text-vault-lime">gas/Code.gs</code> di editor Google Apps Script.</li>
+          <li>Klik <strong>Deploy &gt; New deployment</strong> (atau Manage deployments &gt; Edit &gt; New version).</li>
+          <li>Pilih jenis <strong>Web app</strong>.</li>
+          <li><strong>Execute as</strong>: <span class="text-white font-semibold">Me (email Anda)</span>.</li>
+          <li><strong>Who has access</strong>: <span class="text-emerald-400 font-bold underline">Anyone</span> (Harus 'Anyone' agar tidak diblokir izin/CORS).</li>
+          <li>Salin Web App URL yang berakhiran <code class="text-sky-300 font-mono">/exec</code>.</li>
+        </ol>
       </div>
 
-      <div class="pt-2 flex justify-end gap-2">
-        <button type="button" onclick="closeModal('modalGasConfig')" class="role-quick-btn">Batal</button>
-        <button type="button" onclick="saveModalGasUrl()" class="btn-lime-pill">Simpan URL</button>
+      <div>
+        <label class="block text-xs font-semibold text-slate-300 mb-1">Web App Exec URL</label>
+        <input type="url" id="modalGasUrlInput" placeholder="https://script.google.com/macros/s/.../exec" oninput="sanitizeGasUrlInput(this)" class="auth-input !py-2 text-xs font-mono text-sky-400">
+        <p id="modalGasUrlNotice" class="text-[10px] text-slate-400 mt-1">Harus berakhiran <strong>/exec</strong> (Bukan /dev).</p>
+      </div>
+
+      <!-- Status Hasil Uji Koneksi -->
+      <div id="gasStatusPanel" class="p-3 rounded-2xl bg-slate-950 border border-slate-800 text-xs space-y-1.5">
+        <div class="flex items-center justify-between">
+          <span class="text-slate-400">Status Koneksi:</span>
+          <span id="gasStatusBadge" class="badge-status badge-blue">Belum Diuji</span>
+        </div>
+        <div class="flex items-center justify-between text-[11px]">
+          <span class="text-slate-400">Latensi Respon:</span>
+          <span id="gasLatencyText" class="font-mono text-slate-300">-</span>
+        </div>
+        <div class="flex items-center justify-between text-[11px]">
+          <span class="text-slate-400">Pesan Server:</span>
+          <span id="gasServerMsgText" class="font-mono text-slate-300">-</span>
+        </div>
+      </div>
+
+      <!-- Action Buttons Grid -->
+      <div class="grid grid-cols-2 gap-2 pt-1 text-xs">
+        <button type="button" id="btnTestGasConn" onclick="testGasConnection()" class="role-quick-btn flex items-center justify-center gap-1.5 !py-2">
+          <i data-lucide="radio" class="w-4 h-4 text-sky-400"></i> Test Koneksi
+        </button>
+        <button type="button" onclick="syncFromGasCloud()" class="btn-primary-pill !w-auto flex items-center justify-center gap-1.5 !py-2 bg-slate-800 hover:bg-slate-700">
+          <i data-lucide="download-cloud" class="w-4 h-4 text-emerald-400"></i> Tarik Data Cloud
+        </button>
+        <button type="button" onclick="setupGasSpreadsheet()" class="role-quick-btn flex items-center justify-center gap-1.5 !py-2" title="Buat seluruh sheet & header otomatis di Google Spreadsheet">
+          <i data-lucide="table-properties" class="w-4 h-4 text-vault-lime"></i> Inisialisasi Sheet
+        </button>
+        <button type="button" onclick="pushDataToGasCloud()" class="role-quick-btn flex items-center justify-center gap-1.5 !py-2" title="Kirim data lokal saat ini ke Google Spreadsheet">
+          <i data-lucide="upload-cloud" class="w-4 h-4 text-amber-400"></i> Kirim Data Lokal
+        </button>
+      </div>
+
+      <div class="pt-3 border-t border-slate-800 flex items-center justify-between gap-2">
+        <button type="button" onclick="resetToLocalEngine(); closeModal('modalGasConfig');" class="text-xs text-rose-400 hover:underline">
+          Gunakan Local Engine Saja
+        </button>
+        <div class="flex items-center gap-2">
+          <button type="button" onclick="closeModal('modalGasConfig')" class="role-quick-btn">Tutup</button>
+          <button type="button" onclick="saveModalGasUrl()" class="btn-lime-pill">Simpan URL</button>
+        </div>
       </div>
     </div>
   </div>

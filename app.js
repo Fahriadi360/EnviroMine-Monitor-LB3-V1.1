@@ -17,9 +17,6 @@ const STATE = {
   tempProfilePhoto: null
 };
 
-// URL Backend Google Apps Script Web App (API Endpoint)
-const BACKEND_API_URL = 'https://script.google.com/macros/s/AKfycbxzJMaM7XpQOvR0GUN5zV2nfzshzYmdEbvKZdhQnKGp1dEsQc_FXJ7xoCq9LmbJQE0m/exec';
-
 // 8 Items Checklist Fasilitas K3L TPS LB3 01 PT EMJ (Sesuai Rintek)
 const INSPEKSI_ITEMS_DEFAULT = [
   'Alat Pemadam Api Ringan (APAR)',
@@ -61,6 +58,11 @@ document.addEventListener('DOMContentLoaded', () => {
   checkAuthSession();
   updateGasStatusBadge();
   setupGlobalShortcuts();
+
+  // Background ping status jika URL GAS sudah terkonfigurasi
+  if (STATE.gasApiUrl) {
+    checkGasStatusBackground();
+  }
 
   // Resize listener untuk mobile responsiveness
   window.addEventListener('resize', () => {
@@ -1097,6 +1099,9 @@ function handleFormLimbahMasuk(e) {
   dbMasuk.push(newEntry);
   localStorage.setItem('db_limbah_masuk', JSON.stringify(dbMasuk));
 
+  // Background Sync ke Google Apps Script
+  syncMutationToGas('save_limbah_masuk', { data: newEntry });
+
   if (statusRintek === 'Penanganan Khusus') {
     const dbPK = JSON.parse(localStorage.getItem('db_penanganan_khusus') || '[]');
     dbPK.push({
@@ -1195,6 +1200,8 @@ function handleSaveEditLimbahMasuk(e) {
   list[idx].statusStok = document.getElementById('editMasukStatusStok').value;
 
   localStorage.setItem('db_limbah_masuk', JSON.stringify(list));
+  syncMutationToGas('update_limbah_masuk', { id: id, data: list[idx] });
+
   addAuditLog(STATE.currentUser ? STATE.currentUser.nama : 'Operator', 'EDIT_LIMBAH_MASUK', `Mengubah data limbah masuk: ${list[idx].namaLimbah} (${id})`);
   showToast('Data limbah masuk berhasil diperbarui.', 'success');
   closeModal('modalEditLimbahMasuk');
@@ -1219,6 +1226,7 @@ function deleteLimbahMasuk(id) {
 
   const updated = list.filter(m => m.id !== id);
   localStorage.setItem('db_limbah_masuk', JSON.stringify(updated));
+  syncMutationToGas('delete_limbah_masuk', { id: id });
   addAuditLog(STATE.currentUser ? STATE.currentUser.nama : 'Operator', 'DELETE_LIMBAH_MASUK', `Menghapus limbah masuk: ${item.namaLimbah} (${id})`);
   showToast('Data limbah masuk berhasil dihapus.', 'info');
   renderLimbahMasuk();
@@ -1388,6 +1396,9 @@ function handleFormLimbahKeluar(e) {
   keluarList.push(newOutEntry);
   localStorage.setItem('db_limbah_keluar', JSON.stringify(keluarList));
 
+  // Sync to GAS
+  syncMutationToGas('save_limbah_keluar', { data: newOutEntry });
+
   addAuditLog(operatorName, 'INPUT_LIMBAH_KELUAR', `Menyerahkan limbah ${itemMasuk.namaLimbah} (${jumlah} ${itemMasuk.satuan}) ke ${tujuan}`);
   showToast('Pengeluaran limbah berhasil dicatat.', 'success');
 
@@ -1447,6 +1458,8 @@ function handleSaveEditLimbahKeluar(e) {
   list[idx].manifes = noManifes;
 
   localStorage.setItem('db_limbah_keluar', JSON.stringify(list));
+  syncMutationToGas('update_limbah_keluar', { id: id, data: list[idx] });
+
   addAuditLog(STATE.currentUser ? STATE.currentUser.nama : 'Operator', 'EDIT_LIMBAH_KELUAR', `Mengubah transaksi limbah keluar: ${list[idx].namaLimbah} (${id})`);
   showToast('Data pengeluaran limbah berhasil diperbarui.', 'success');
   closeModal('modalEditLimbahKeluar');
@@ -1475,6 +1488,7 @@ function deleteLimbahKeluar(id) {
 
   const updatedKeluar = keluarList.filter(k => k.id !== id);
   localStorage.setItem('db_limbah_keluar', JSON.stringify(updatedKeluar));
+  syncMutationToGas('delete_limbah_keluar', { id: id, refIdMasuk: item.refIdMasuk });
 
   addAuditLog(STATE.currentUser ? STATE.currentUser.nama : 'Operator', 'DELETE_LIMBAH_KELUAR', `Menghapus limbah keluar: ${item.namaLimbah} (${id}), stok ${item.refIdMasuk} dikembalikan`);
   showToast('Data limbah keluar dihapus. Status stok limbah terkait kembali Tersedia.', 'info');
@@ -1537,6 +1551,13 @@ function approvePK(id, isApproved) {
     item.approver = STATE.currentUser ? STATE.currentUser.nama : 'Hermanto (PJ TPS)';
     item.catatan = catatan;
     localStorage.setItem('db_penanganan_khusus', JSON.stringify(list));
+
+    // Sync to GAS
+    syncMutationToGas('review_penanganan_khusus', {
+      id: id,
+      decision: isApproved ? 'approve' : 'reject',
+      notes: catatan
+    });
 
     addAuditLog(item.approver, 'APPROVAL_PENANGANAN_KHUSUS', `${item.status} untuk ${id}`);
     showToast(`Status penanganan khusus diperbarui: ${item.status}`, 'info');
@@ -1698,6 +1719,12 @@ function handleFormInspeksi(e) {
   });
 
   localStorage.setItem('db_inspeksi', JSON.stringify(currentInspeksi));
+  
+  // Background Sync batch inspeksi ke GAS
+  currentInspeksi.slice(-INSPEKSI_ITEMS_DEFAULT.length).forEach(inspItem => {
+    syncMutationToGas('save_inspeksi', { data: inspItem });
+  });
+
   addAuditLog(operatorName, 'INSPEKSI_TPS', `Melakukan checklist inspeksi K3L (${batchId})`);
 
   if (foundRusak) {
@@ -1735,6 +1762,8 @@ function handleSaveEditInspeksi(e) {
     item.kondisi = kondisi;
     item.catatan = catatan;
     localStorage.setItem('db_inspeksi', JSON.stringify(list));
+    syncMutationToGas('update_inspeksi', { id: id, data: item });
+
     addAuditLog(STATE.currentUser ? STATE.currentUser.nama : 'Operator', 'EDIT_INSPEKSI', `Mengubah inspeksi ${id}`);
     showToast('Catatan inspeksi berhasil diperbarui.', 'success');
     closeModal('modalEditInspeksi');
@@ -1747,6 +1776,7 @@ function deleteInspeksi(id) {
     let list = JSON.parse(localStorage.getItem('db_inspeksi') || '[]');
     list = list.filter(i => i.id !== id);
     localStorage.setItem('db_inspeksi', JSON.stringify(list));
+    syncMutationToGas('delete_inspeksi', { id: id });
     addAuditLog(STATE.currentUser ? STATE.currentUser.nama : 'Operator', 'DELETE_INSPEKSI', `Menghapus data inspeksi ${id}`);
     showToast('Data inspeksi berhasil dihapus.', 'info');
     renderInspeksi();
@@ -1898,6 +1928,8 @@ function handleSavePerbaikanInspeksi(e) {
   }
 
   localStorage.setItem('db_inspeksi', JSON.stringify(list));
+  syncMutationToGas('update_progres_inspeksi', { id: id, perbaikan: item.perbaikan });
+
   addAuditLog(updaterName, 'UPDATE_PERBAIKAN_INSPEKSI', `Update progres perbaikan ${item.itemChecklist} (${id}): ${status}`);
   showToast(`Progres perbaikan berhasil disimpan: ${status}`, 'success');
 
@@ -2240,6 +2272,9 @@ function handleFormCreateNeraca(e) {
   list.unshift(newNeraca);
   localStorage.setItem('db_neraca', JSON.stringify(list));
 
+  // Sync to GAS
+  syncMutationToGas('generate_neraca', { data: newNeraca });
+
   addAuditLog(STATE.currentUser ? STATE.currentUser.nama : 'Operator', 'GENERATE_NERACA', `Membuat Neraca ${nomorDoc} (${periodeStr})`);
   showToast(`Neraca baru berhasil dibuat dengan nomor: ${nomorDoc}`, 'success');
   closeModal('modalCreateNeraca');
@@ -2447,6 +2482,8 @@ function handleSaveEditNeraca(e) {
   neracaList[idx].kinerja = kinerja || '100.00%';
 
   localStorage.setItem('db_neraca', JSON.stringify(neracaList));
+  syncMutationToGas('update_neraca', { id: id, data: neracaList[idx] });
+
   addAuditLog(STATE.currentUser ? STATE.currentUser.nama : 'Operator', 'EDIT_NERACA', `Mengubah dokumen Neraca: ${noDoc} (${neracaList[idx].periode})`);
   showToast('Perubahan dokumen Neraca berhasil disimpan.', 'success');
   closeModal('modalEditNeraca');
@@ -2464,6 +2501,7 @@ function deleteNeraca(id) {
 
   const updated = neracaList.filter(n => n.id !== id);
   localStorage.setItem('db_neraca', JSON.stringify(updated));
+  syncMutationToGas('delete_neraca', { id: id });
 
   addAuditLog(STATE.currentUser ? STATE.currentUser.nama : 'Operator', 'DELETE_NERACA', `Menghapus dokumen Neraca: ${item.nomorDokumen || item.id}`);
   showToast('Dokumen Neraca berhasil dihapus.', 'info');
@@ -2952,6 +2990,9 @@ function submitWorkflowNeracaFromModal() {
 
   closeModal('modalPengaturanCetakNeraca');
   renderNeraca();
+
+  // Sync perubahan status / ttd neraca ke GAS
+  syncMutationToGas('update_neraca', { id: neracaId, data: item });
 }
 
 // --- 4.8 STUDIO TANDA TANGAN ONLINE (Sesuai Permintaan #1) ---
@@ -3145,6 +3186,8 @@ function quickSignFromStudio(neracaId) {
   }
 
   localStorage.setItem('db_neraca', JSON.stringify(neracaList));
+  syncMutationToGas('sign_neraca', { id: neracaId, role: role, signatureBase64: savedTtd });
+
   addAuditLog(STATE.currentUser.nama, 'SIGN_NERACA', `Mengesahkan Neraca ${item.nomorDokumen || neracaId} sebagai ${role}`);
   showToast(`Dokumen Neraca ${item.nomorDokumen || neracaId} berhasil disahkan!`, 'success');
   renderStudioTtd();
@@ -3245,6 +3288,8 @@ function submitDigitalSignature() {
   }
 
   localStorage.setItem('db_neraca', JSON.stringify(neracaList));
+  syncMutationToGas('sign_neraca', { id: neracaId, role: role, signatureBase64: signatureDataUrl });
+
   addAuditLog(STATE.currentUser ? STATE.currentUser.nama : role, 'SIGN_NERACA', `Menandatangani Neraca ${neracaId} sebagai ${role}`);
 
   showToast(`Tanda tangan elektronik ${role} berhasil dibubuhkan!`, 'success');
@@ -3308,6 +3353,8 @@ function openModalTambahRintek() {
   });
 
   localStorage.setItem('db_rintek', JSON.stringify(rintek));
+  syncMutationToGas('save_rintek', { data: rintek[rintek.length - 1] });
+
   addAuditLog(STATE.currentUser ? STATE.currentUser.nama : 'Admin', 'ADD_RINTEK', `Menambahkan master rintek ${nama} (${kode})`);
   showToast('Data Rintek berhasil ditambahkan.', 'success');
   renderMasterRintek();
@@ -3358,6 +3405,8 @@ function handleSaveEditRintek(e) {
       batasSimpanHari: hari
     };
     localStorage.setItem('db_rintek', JSON.stringify(rintek));
+    syncMutationToGas('update_rintek', { kode: origKode, data: rintek[idx] });
+
     addAuditLog(STATE.currentUser ? STATE.currentUser.nama : 'Admin', 'EDIT_RINTEK', `Mengubah rintek ${nama} (${kode})`);
     showToast('Data Rintek berhasil diperbarui.', 'success');
     closeModal('modalEditRintek');
@@ -3370,6 +3419,8 @@ function deleteRintek(kode) {
     let rintek = JSON.parse(localStorage.getItem('db_rintek') || '[]');
     rintek = rintek.filter(r => r.kodeLimbah !== kode);
     localStorage.setItem('db_rintek', JSON.stringify(rintek));
+    syncMutationToGas('delete_rintek', { kode: kode });
+
     addAuditLog(STATE.currentUser ? STATE.currentUser.nama : 'Admin', 'DELETE_RINTEK', `Menghapus limbah rintek ${kode}`);
     showToast('Data Rintek berhasil dihapus.', 'info');
     renderMasterRintek();
@@ -3420,6 +3471,8 @@ function openModalTambahPihakKetiga() {
   });
 
   localStorage.setItem('db_pihak_ketiga', JSON.stringify(pkList));
+  syncMutationToGas('save_pihak_ketiga', { data: pkList[pkList.length - 1] });
+
   addAuditLog(STATE.currentUser ? STATE.currentUser.nama : 'Admin', 'ADD_PIHAK_KETIGA', `Menambahkan mitra pihak ketiga ${nama}`);
   showToast('Pihak ketiga berhasil ditambahkan.', 'success');
   renderMasterPihakKetiga();
@@ -3453,6 +3506,8 @@ function handleSaveEditPK(e) {
   if (idx !== -1) {
     pkList[idx] = { id, namaPerusahaan: nama, noIzin: izin, alamat, kontak };
     localStorage.setItem('db_pihak_ketiga', JSON.stringify(pkList));
+    syncMutationToGas('update_pihak_ketiga', { id: id, data: pkList[idx] });
+
     addAuditLog(STATE.currentUser ? STATE.currentUser.nama : 'Admin', 'EDIT_PIHAK_KETIGA', `Mengubah pihak ketiga ${nama}`);
     showToast('Data pihak ketiga berhasil diperbarui.', 'success');
     closeModal('modalEditPK');
@@ -3465,6 +3520,8 @@ function deletePihakKetiga(id) {
     let pkList = JSON.parse(localStorage.getItem('db_pihak_ketiga') || '[]');
     pkList = pkList.filter(p => p.id !== id);
     localStorage.setItem('db_pihak_ketiga', JSON.stringify(pkList));
+    syncMutationToGas('delete_pihak_ketiga', { id: id });
+
     addAuditLog(STATE.currentUser ? STATE.currentUser.nama : 'Admin', 'DELETE_PIHAK_KETIGA', `Menghapus pihak ketiga ${id}`);
     showToast('Pihak ketiga berhasil dihapus.', 'info');
     renderMasterPihakKetiga();
@@ -3519,6 +3576,8 @@ function openModalTambahUser() {
   });
 
   localStorage.setItem('db_users', JSON.stringify(users));
+  syncMutationToGas('save_user', { data: users[users.length - 1] });
+
   addAuditLog(STATE.currentUser ? STATE.currentUser.nama : 'Admin', 'ADD_USER', `Mendaftarkan pengguna baru: ${username} (${role})`);
   showToast('Pengguna baru berhasil didaftarkan.', 'success');
   renderMasterUsers();
@@ -3556,6 +3615,8 @@ function handleSaveEditUser(e) {
     users[idx].status = status;
 
     localStorage.setItem('db_users', JSON.stringify(users));
+    syncMutationToGas('update_user', { id: id, data: users[idx] });
+
     addAuditLog(STATE.currentUser ? STATE.currentUser.nama : 'Admin', 'EDIT_USER', `Mengubah data user ${username}`);
     showToast('Data pengguna berhasil diperbarui.', 'success');
     closeModal('modalEditUser');
@@ -3568,6 +3629,8 @@ function deleteUser(id) {
     let users = JSON.parse(localStorage.getItem('db_users') || '[]');
     users = users.filter(u => u.id !== id);
     localStorage.setItem('db_users', JSON.stringify(users));
+    syncMutationToGas('delete_user', { id: id });
+
     addAuditLog(STATE.currentUser ? STATE.currentUser.nama : 'Admin', 'DELETE_USER', `Menghapus pengguna ${id}`);
     showToast('Pengguna berhasil dihapus.', 'info');
     renderMasterUsers();
@@ -3583,6 +3646,8 @@ function resetUserPassword(username) {
   if (u) {
     u.password = newPass;
     localStorage.setItem('db_users', JSON.stringify(users));
+    syncMutationToGas('reset_password', { username: username, newPassword: newPass });
+
     addAuditLog(STATE.currentUser ? STATE.currentUser.nama : 'Admin', 'RESET_PASSWORD', `Mereset password user ${username}`);
     showToast(`Password untuk ${username} berhasil diubah.`, 'info');
   }
@@ -3659,24 +3724,459 @@ function saveSettingsForm() {
   localStorage.setItem('db_settings', JSON.stringify(cfg));
   applyCompanySettingsUI();
 
+  // Sync settings ke GAS
+  syncMutationToGas('save_settings', { data: cfg });
+
   addAuditLog(STATE.currentUser ? STATE.currentUser.nama : 'Admin', 'UPDATE_SETTINGS', 'Menyimpan konfigurasi identitas perusahaan');
   showToast('Identitas dan profil perusahaan berhasil disimpan!', 'success');
 }
 
-function saveGasUrlConfig() {
-  const url = document.getElementById('inputGasUrl').value.trim();
+// ==========================================================================
+// 4.13 GOOGLE APPS SCRIPT (GAS) INTEGRATION CLIENT ENGINE
+// ==========================================================================
+
+function sanitizeGasUrlInput(inputEl) {
+  let val = '';
+  if (typeof inputEl === 'string') {
+    val = inputEl.trim();
+  } else if (inputEl && inputEl.value !== undefined) {
+    val = inputEl.value.trim();
+  }
+
+  // Auto-rewrite /dev into /exec if user accidentally copied dev link
+  if (val.endsWith('/dev')) {
+    val = val.replace(/\/dev$/, '/exec');
+    if (inputEl && inputEl.value !== undefined) {
+      inputEl.value = val;
+    }
+    showToast('Info: URL berakhiran /dev otomatis diubah menjadi /exec agar dapat diakses publik.', 'info');
+  }
+
+  // Sync inputs across both view-pengaturan and modalGasConfig
+  const modalInput = document.getElementById('modalGasUrlInput');
+  const viewInput = document.getElementById('inputGasUrl');
+  if (modalInput && modalInput !== inputEl && modalInput.value !== val) modalInput.value = val;
+  if (viewInput && viewInput !== inputEl && viewInput.value !== val) viewInput.value = val;
+
+  // Validation notice feedback
+  const modalNotice = document.getElementById('modalGasUrlNotice');
+  const cfgNotice = document.getElementById('cfgGasUrlNotice');
+  const updateNotice = (el) => {
+    if (!el) return;
+    if (!val) {
+      el.innerHTML = 'Harus berakhiran <strong>/exec</strong> dari menu Deploy &gt; New deployment &gt; Web app.';
+    } else if (!val.includes('script.google.com/macros/s/')) {
+      el.innerHTML = '<span class="text-rose-400 font-semibold">Format URL tidak valid! Harus diawali: https://script.google.com/macros/s/...</span>';
+    } else if (!val.endsWith('/exec')) {
+      el.innerHTML = '<span class="text-amber-400 font-semibold">Peringatan: URL harus berakhiran <strong>/exec</strong> (Bukan /dev atau /edit).</span>';
+    } else {
+      el.innerHTML = '<span class="text-emerald-400 font-semibold">✓ Format Web App URL Valid (Google Apps Script).</span>';
+    }
+  };
+
+  updateNotice(modalNotice);
+  updateNotice(cfgNotice);
+
+  return val;
+}
+
+async function callGasApi(action, payload = {}, options = {}) {
+  let url = (options.url || STATE.gasApiUrl || '').trim();
+  if (!url) {
+    return { status: 'error', message: 'URL Google Apps Script belum dikonfigurasi.' };
+  }
+
+  if (url.endsWith('/dev')) {
+    url = url.replace(/\/dev$/, '/exec');
+  }
+
+  const timeoutMs = options.timeout || 25000;
+  const controller = new AbortController();
+  const timeoutTimer = setTimeout(() => controller.abort(), timeoutMs);
+
+  const requestBody = JSON.stringify({
+    action: action,
+    user: STATE.currentUser ? STATE.currentUser.nama : 'Operator',
+    ...payload
+  });
+
+  try {
+    // IMPORTANT: Send POST with Content-Type text/plain;charset=utf-8 and redirect follow.
+    // This executes without a CORS preflight OPTIONS request on GAS Web Apps.
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'text/plain;charset=utf-8'
+      },
+      body: requestBody,
+      redirect: 'follow',
+      signal: controller.signal
+    });
+
+    clearTimeout(timeoutTimer);
+
+    const responseText = await response.text();
+
+    // Check if Google returned an HTML login or permission denied page
+    if (responseText.includes('<!DOCTYPE') || responseText.includes('<html') || responseText.includes('accounts.google.com') || responseText.includes('Google Drive – Page Not Found')) {
+      return {
+        status: 'error',
+        message: 'Akses Ditolak / Butuh Login: Pastikan deployment Web App di Apps Script diset "Who has access: Anyone". Jika diset "Only myself", browser publik tidak diizinkan mengakses.',
+        raw: responseText
+      };
+    }
+
+    try {
+      const json = JSON.parse(responseText);
+      return json;
+    } catch (parseErr) {
+      return {
+        status: 'error',
+        message: 'Respon dari Google Apps Script bukan JSON valid: ' + parseErr.message,
+        raw: responseText
+      };
+    }
+  } catch (err) {
+    clearTimeout(timeoutTimer);
+    if (err.name === 'AbortError') {
+      return { status: 'error', message: `Permintaan ke GAS timeout setelah ${timeoutMs / 1000} detik. Periksa koneksi internet.` };
+    }
+    return {
+      status: 'error',
+      message: 'Gagal terhubung ke GAS (CORS / Network Error). Pastikan deployment diset "Who has access: Anyone" dan URL berakhiran "/exec". Detail: ' + err.message
+    };
+  }
+}
+
+function updateGasDiagnosticUI(state, statusLabel, latency, serverMsg) {
+  // Update modal elements
+  const badge = document.getElementById('gasStatusBadge');
+  const latEl = document.getElementById('gasLatencyText');
+  const msgEl = document.getElementById('gasServerMsgText');
+
+  if (badge) {
+    badge.textContent = statusLabel;
+    if (state === true) {
+      badge.className = 'badge-status badge-green';
+    } else if (state === false) {
+      badge.className = 'badge-status badge-red';
+    } else if (state === 'testing') {
+      badge.className = 'badge-status badge-yellow animate-pulse';
+    } else {
+      badge.className = 'badge-status badge-blue';
+    }
+  }
+  if (latEl) latEl.textContent = latency;
+  if (msgEl) msgEl.textContent = serverMsg;
+
+  // Update view-pengaturan elements
+  const cfgBadge = document.getElementById('cfgGasStatusBadge');
+  const cfgLatEl = document.getElementById('cfgGasLatencyText');
+  const cfgMsgEl = document.getElementById('cfgGasServerMsgText');
+  const cfgDbStatus = document.getElementById('cfgDbStatus');
+
+  if (cfgBadge) {
+    cfgBadge.textContent = statusLabel;
+    if (state === true) {
+      cfgBadge.className = 'badge-status badge-green';
+    } else if (state === false) {
+      cfgBadge.className = 'badge-status badge-red';
+    } else if (state === 'testing') {
+      cfgBadge.className = 'badge-status badge-yellow animate-pulse';
+    } else {
+      cfgBadge.className = 'badge-status badge-blue';
+    }
+  }
+  if (cfgLatEl) cfgLatEl.textContent = latency;
+  if (cfgMsgEl) cfgMsgEl.textContent = serverMsg;
+  if (cfgDbStatus) {
+    cfgDbStatus.textContent = state === true ? 'GAS Cloud Terhubung' : 'Local Storage Engine';
+    cfgDbStatus.className = state === true ? 'text-emerald-400 font-mono font-bold' : 'text-vault-lime font-mono';
+  }
+
+  // Update Topbar Badge
+  const topText = document.getElementById('backendStatusText');
+  if (topText) {
+    if (state === true) {
+      topText.textContent = 'GAS API: Terhubung';
+      topText.parentElement.className = 'cursor-pointer text-[11px] font-mono px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/40 text-emerald-400 flex items-center gap-1.5';
+    } else if (state === 'testing') {
+      topText.textContent = 'GAS API: Menghubungkan...';
+      topText.parentElement.className = 'cursor-pointer text-[11px] font-mono px-2.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/40 text-amber-400 flex items-center gap-1.5';
+    } else {
+      if (STATE.gasApiUrl) {
+        topText.textContent = 'GAS API: Terputus';
+        topText.parentElement.className = 'cursor-pointer text-[11px] font-mono px-2.5 py-1 rounded-full bg-rose-500/10 border border-rose-500/40 text-rose-400 flex items-center gap-1.5';
+      } else {
+        topText.textContent = 'Mode: Local Engine';
+        topText.parentElement.className = 'cursor-pointer text-[11px] font-mono px-2.5 py-1 rounded-full bg-slate-800/80 border border-slate-700 text-sky-400 flex items-center gap-1.5 hover:border-sky-400';
+      }
+    }
+  }
+}
+
+async function testGasConnection(customUrl = null) {
+  const modalInput = document.getElementById('modalGasUrlInput');
+  const viewInput = document.getElementById('inputGasUrl');
+
+  let testUrl = customUrl || (modalInput ? modalInput.value.trim() : '') || (viewInput ? viewInput.value.trim() : '') || STATE.gasApiUrl;
+
+  if (testUrl) {
+    testUrl = sanitizeGasUrlInput(testUrl);
+  }
+
+  if (!testUrl) {
+    showToast('Masukkan Web App URL Google Apps Script terlebih dahulu.', 'warning');
+    updateGasDiagnosticUI(false, 'URL Kosong', '-', 'Belum ada Web App URL yang dimasukkan');
+    return false;
+  }
+
+  updateGasDiagnosticUI('testing', 'Menguji Koneksi...', '...', 'Mengirim ping ke Google Apps Script backend...');
+
+  const btn = document.getElementById('btnTestGasConn');
+  if (btn) btn.disabled = true;
+
+  const t0 = performance.now();
+  const res = await callGasApi('ping', {}, { url: testUrl, timeout: 15000 });
+  const latency = Math.round(performance.now() - t0);
+
+  if (btn) btn.disabled = false;
+
+  if (res && res.status === 'success') {
+    STATE.gasApiUrl = testUrl;
+    localStorage.setItem('enviromine_gas_url', testUrl);
+
+    updateGasDiagnosticUI(true, 'Terhubung (Online)', `${latency} ms`, res.message || 'API EnviroMine Siap Digunakan');
+    showToast(`Koneksi ke Google Apps Script BERHASIL! (Latensi: ${latency} ms)`, 'success');
+    addAuditLog(STATE.currentUser ? STATE.currentUser.nama : 'System', 'GAS_CONNECT_SUCCESS', `Berhasil terhubung ke GAS backend (${latency} ms)`);
+    return true;
+  } else {
+    const errorMsg = res && res.message ? res.message : 'Tidak ada respon dari server GAS';
+    updateGasDiagnosticUI(false, 'Gagal Terhubung', `${latency} ms`, errorMsg);
+    showToast('Uji Koneksi GAS Gagal: ' + errorMsg, 'error');
+    addAuditLog(STATE.currentUser ? STATE.currentUser.nama : 'System', 'GAS_CONNECT_FAIL', `Gagal koneksi GAS: ${errorMsg}`);
+    return false;
+  }
+}
+
+async function syncFromGasCloud() {
+  if (!STATE.gasApiUrl) {
+    showToast('URL Google Apps Script belum dikonfigurasi. Lakukan uji koneksi terlebih dahulu.', 'warning');
+    openGasSettingsModal();
+    return;
+  }
+
+  showToast('Sedang menarik seluruh data dari Google Spreadsheet...', 'info');
+
+  const res = await callGasApi('get_all_data', {}, { timeout: 35000 });
+
+  if (res && res.status === 'success' && res.data) {
+    const d = res.data;
+    let countItems = 0;
+
+    if (Array.isArray(d.rintek) && d.rintek.length > 0) {
+      localStorage.setItem('db_rintek', JSON.stringify(d.rintek));
+      countItems += d.rintek.length;
+    }
+    if (Array.isArray(d.pihakKetiga) && d.pihakKetiga.length > 0) {
+      localStorage.setItem('db_pihak_ketiga', JSON.stringify(d.pihakKetiga));
+      countItems += d.pihakKetiga.length;
+    }
+    if (Array.isArray(d.users) && d.users.length > 0) {
+      localStorage.setItem('db_users', JSON.stringify(d.users));
+      countItems += d.users.length;
+    }
+    if (Array.isArray(d.limbahMasuk) && d.limbahMasuk.length > 0) {
+      localStorage.setItem('db_limbah_masuk', JSON.stringify(d.limbahMasuk));
+      countItems += d.limbahMasuk.length;
+    }
+    if (Array.isArray(d.limbahKeluar) && d.limbahKeluar.length > 0) {
+      localStorage.setItem('db_limbah_keluar', JSON.stringify(d.limbahKeluar));
+      countItems += d.limbahKeluar.length;
+    }
+    if (Array.isArray(d.penangananKhusus)) {
+      localStorage.setItem('db_penanganan_khusus', JSON.stringify(d.penangananKhusus));
+      countItems += d.penangananKhusus.length;
+    }
+    if (Array.isArray(d.inspeksi) && d.inspeksi.length > 0) {
+      localStorage.setItem('db_inspeksi', JSON.stringify(d.inspeksi));
+      countItems += d.inspeksi.length;
+    }
+    if (Array.isArray(d.neraca) && d.neraca.length > 0) {
+      localStorage.setItem('db_neraca', JSON.stringify(d.neraca));
+      countItems += d.neraca.length;
+    }
+    if (d.settings && d.settings.namaPerusahaan) {
+      const curSettings = JSON.parse(localStorage.getItem('db_settings') || '{}');
+      const mergedSettings = { ...curSettings, ...d.settings };
+      localStorage.setItem('db_settings', JSON.stringify(mergedSettings));
+    }
+
+    applyCompanySettingsUI();
+    navigateTo(STATE.activeView || 'dashboard');
+
+    showToast(`Sinkronisasi Cloud Berhasil! (${countItems} data termuat)`, 'success');
+    addAuditLog(STATE.currentUser ? STATE.currentUser.nama : 'Operator', 'SYNC_CLOUD_DOWNLOAD', `Tarik data dari Google Sheets: ${countItems} entri`);
+  } else {
+    const errorMsg = res && res.message ? res.message : 'Gagal mengunduh data dari Cloud.';
+    showToast('Gagal Tarik Data Cloud: ' + errorMsg, 'error');
+  }
+}
+
+async function pushDataToGasCloud() {
+  if (!STATE.gasApiUrl) {
+    showToast('URL Google Apps Script belum dikonfigurasi.', 'warning');
+    openGasSettingsModal();
+    return;
+  }
+
+  if (!confirm('Apakah Anda ingin mengirim SELURUH data lokal saat ini untuk mengisi / mengupdate Google Spreadsheet?')) {
+    return;
+  }
+
+  showToast('Sedang mengirim data lokal ke Google Spreadsheet...', 'info');
+
+  const payloadData = {
+    rintek: JSON.parse(localStorage.getItem('db_rintek') || '[]'),
+    pihakKetiga: JSON.parse(localStorage.getItem('db_pihak_ketiga') || '[]'),
+    users: JSON.parse(localStorage.getItem('db_users') || '[]'),
+    limbahMasuk: JSON.parse(localStorage.getItem('db_limbah_masuk') || '[]'),
+    limbahKeluar: JSON.parse(localStorage.getItem('db_limbah_keluar') || '[]'),
+    penangananKhusus: JSON.parse(localStorage.getItem('db_penanganan_khusus') || '[]'),
+    inspeksi: JSON.parse(localStorage.getItem('db_inspeksi') || '[]'),
+    neraca: JSON.parse(localStorage.getItem('db_neraca') || '[]'),
+    settings: JSON.parse(localStorage.getItem('db_settings') || '{}')
+  };
+
+  const res = await callGasApi('push_all_data', { data: payloadData }, { timeout: 40000 });
+
+  if (res && res.status === 'success') {
+    showToast('Seluruh data lokal berhasil disimpan ke Google Spreadsheet!', 'success');
+    addAuditLog(STATE.currentUser ? STATE.currentUser.nama : 'Operator', 'SYNC_CLOUD_UPLOAD', 'Kirim seluruh data lokal ke Google Spreadsheet');
+  } else {
+    const errorMsg = res && res.message ? res.message : 'Gagal mengirim data lokal ke Spreadsheet.';
+    showToast('Gagal Kirim Data: ' + errorMsg, 'error');
+  }
+}
+
+async function setupGasSpreadsheet() {
+  if (!STATE.gasApiUrl) {
+    showToast('URL Google Apps Script belum dikonfigurasi.', 'warning');
+    openGasSettingsModal();
+    return;
+  }
+
+  showToast('Sedang menginisialisasi 11 Sheet & folder Google Drive di Spreadsheet Anda...', 'info');
+
+  const res = await callGasApi('setup_environment', {}, { timeout: 45000 });
+
+  if (res && res.status === 'success') {
+    showToast('Database Google Sheets & Folder Drive BERHASIL diinisialisasi!', 'success');
+    addAuditLog(STATE.currentUser ? STATE.currentUser.nama : 'Admin', 'SETUP_GAS_SPREADSHEET', 'Inisialisasi 11 sheet & Drive folder');
+  } else {
+    const errorMsg = res && res.message ? res.message : 'Gagal menginisialisasi spreadsheet.';
+    showToast('Gagal Inisialisasi: ' + errorMsg, 'error');
+  }
+}
+
+function syncMutationToGas(action, payload = {}) {
+  if (!STATE.gasApiUrl) return;
+
+  // Background non-blocking execution
+  callGasApi(action, payload)
+    .then(res => {
+      if (res && res.status === 'success') {
+        console.log(`[GAS Sync] ${action} sukses:`, res);
+      } else {
+        console.warn(`[GAS Sync] ${action} warning:`, res);
+      }
+    })
+    .catch(err => {
+      console.warn(`[GAS Sync] ${action} network error:`, err);
+    });
+}
+
+function checkGasStatusBackground() {
+  if (!STATE.gasApiUrl) return;
+  callGasApi('ping', {}, { timeout: 10000 })
+    .then(res => {
+      if (res && res.status === 'success') {
+        updateGasDiagnosticUI(true, 'Terhubung (Online)', 'OK', res.message || 'API Aktif');
+      } else {
+        updateGasDiagnosticUI(false, 'Terputus', '-', res.message || 'Tidak ada respon');
+      }
+    })
+    .catch(() => {
+      updateGasDiagnosticUI(false, 'Terputus', '-', 'Koneksi gagal');
+    });
+}
+
+async function saveGasUrlConfig() {
+  const urlInput = document.getElementById('inputGasUrl');
+  let url = urlInput ? urlInput.value.trim() : '';
+  url = sanitizeGasUrlInput(url);
+
+  if (!url) {
+    showToast('Masukkan URL Web App Google Apps Script.', 'warning');
+    return;
+  }
+
   STATE.gasApiUrl = url;
   localStorage.setItem('enviromine_gas_url', url);
   updateGasStatusBadge();
-  showToast('URL Google Apps Script disimpan.', 'success');
+
+  await testGasConnection(url);
 }
 
 function resetToLocalEngine() {
   STATE.gasApiUrl = '';
   localStorage.removeItem('enviromine_gas_url');
-  document.getElementById('inputGasUrl').value = '';
+  const viewInput = document.getElementById('inputGasUrl');
+  const modalInput = document.getElementById('modalGasUrlInput');
+  if (viewInput) viewInput.value = '';
+  if (modalInput) modalInput.value = '';
+  updateGasDiagnosticUI(null, 'Mode Local Demo', '-', 'Menggunakan Local Storage');
   updateGasStatusBadge();
-  showToast('Kembali ke Local Engine.', 'info');
+  showToast('Kembali ke Local Demo Engine.', 'info');
+  addAuditLog(STATE.currentUser ? STATE.currentUser.nama : 'System', 'RESET_LOCAL_ENGINE', 'Beralih ke Local Storage Engine');
+}
+
+function updateGasStatusBadge() {
+  const badgeText = document.getElementById('backendStatusText');
+  if (!badgeText) return;
+
+  if (STATE.gasApiUrl) {
+    badgeText.textContent = 'GAS API: Terhubung';
+    badgeText.parentElement.className = 'cursor-pointer text-[11px] font-mono px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/40 text-emerald-400 flex items-center gap-1.5';
+  } else {
+    badgeText.textContent = 'Mode: Local Engine';
+    badgeText.parentElement.className = 'cursor-pointer text-[11px] font-mono px-2.5 py-1 rounded-full bg-slate-800/80 border border-slate-700 text-sky-400 flex items-center gap-1.5 hover:border-sky-400';
+  }
+}
+
+function openGasSettingsModal() {
+  const modalInput = document.getElementById('modalGasUrlInput');
+  if (modalInput) modalInput.value = STATE.gasApiUrl;
+  sanitizeGasUrlInput(modalInput);
+  openModal('modalGasConfig');
+}
+
+async function saveModalGasUrl() {
+  const urlInput = document.getElementById('modalGasUrlInput');
+  let val = urlInput ? urlInput.value.trim() : '';
+  val = sanitizeGasUrlInput(val);
+
+  if (!val) {
+    showToast('Masukkan URL Web App Google Apps Script.', 'warning');
+    return;
+  }
+
+  STATE.gasApiUrl = val;
+  localStorage.setItem('enviromine_gas_url', val);
+  updateGasStatusBadge();
+  closeModal('modalGasConfig');
+
+  await testGasConnection(val);
 }
 
 // ==========================================================================
@@ -3745,32 +4245,7 @@ function addAuditLog(user, aksi, keterangan) {
   localStorage.setItem('db_audit', JSON.stringify(logs));
 }
 
-function updateGasStatusBadge() {
-  const badgeText = document.getElementById('backendStatusText');
-  if (!badgeText) return;
 
-  if (STATE.gasApiUrl) {
-    badgeText.textContent = 'GAS API: Terhubung';
-    badgeText.parentElement.className = 'cursor-pointer text-[11px] font-mono px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/40 text-emerald-400 flex items-center gap-1.5';
-  } else {
-    badgeText.textContent = 'Mode: Local Engine';
-    badgeText.parentElement.className = 'cursor-pointer text-[11px] font-mono px-2.5 py-1 rounded-full bg-slate-800/80 border border-slate-700 text-sky-400 flex items-center gap-1.5 hover:border-sky-400';
-  }
-}
-
-function openGasSettingsModal() {
-  document.getElementById('modalGasUrlInput').value = STATE.gasApiUrl;
-  openModal('modalGasConfig');
-}
-
-function saveModalGasUrl() {
-  const val = document.getElementById('modalGasUrlInput').value.trim();
-  STATE.gasApiUrl = val;
-  localStorage.setItem('enviromine_gas_url', val);
-  updateGasStatusBadge();
-  closeModal('modalGasConfig');
-  showToast('Konfigurasi Google Apps Script diperbarui.', 'success');
-}
 
 function toggleNotificationPopover() {
   const popover = document.getElementById('notifPopover');
