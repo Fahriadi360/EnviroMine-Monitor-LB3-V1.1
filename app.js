@@ -17,6 +17,9 @@ const STATE = {
   tempProfilePhoto: null
 };
 
+// URL Backend Google Apps Script Web App (API Endpoint)
+const BACKEND_API_URL = 'https://script.google.com/macros/s/AKfycbxzJMaM7XpQOvR0GUN5zV2nfzshzYmdEbvKZdhQnKGp1dEsQc_FXJ7xoCq9LmbJQE0m/exec';
+
 // 8 Items Checklist Fasilitas K3L TPS LB3 01 PT EMJ (Sesuai Rintek)
 const INSPEKSI_ITEMS_DEFAULT = [
   'Alat Pemadam Api Ringan (APAR)',
